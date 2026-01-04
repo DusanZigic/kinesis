@@ -1,0 +1,33 @@
+#include <windows.h>
+
+1 ICON "icon/icon.ico"
+
+// Version Information
+1 VERSIONINFO
+FILEVERSION     1,0,0,0
+PRODUCTVERSION  1,0,0,0
+FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
+FILEFLAGS       0x0L
+FILEOS          VOS_NT_WINDOWS32
+FILETYPE        VFT_APP
+FILESUBTYPE     VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904E4"
+        BEGIN
+            VALUE "CompanyName",      "DusanZigic"
+            VALUE "FileDescription",  "Kinesis: High-Speed Productivity Suite"
+            VALUE "FileVersion",      "1.0.0"
+            VALUE "InternalName",     "kinesis"
+            VALUE "LegalCopyright",   "2026 DusanZigic"
+            VALUE "OriginalFilename", "ks.exe"
+            VALUE "ProductName",      "Kinesis"
+            VALUE "ProductVersion",   "1.0.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1252
+    END
+END
