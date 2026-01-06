@@ -1,7 +1,11 @@
 #include "common.hpp"
 #include "appcycleswitcher.hpp"
 
+static bool classRegistered = false;
 static HWND hSwitcherWindow = NULL;
+static HFONT hSwitcherFont = NULL;
+static HBRUSH hSwitcherBackBrush = NULL;
+
 static std::vector<HTHUMBNAIL> sessionThumbs;
 
 static SwitcherLayout cachedLayout;
@@ -107,23 +111,10 @@ static LRESULT CALLBACK SwitcherWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPAR
         case WM_PAINT: {
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hwnd, &ps);
+            FillRect(hdc, &ps.rcPaint, hSwitcherBackBrush);
 
-            FillRect(hdc, &ps.rcPaint, (HBRUSH)GetClassLongPtr(hwnd, GCLP_HBRBACKGROUND));
-
-            if (isAltTildeSession && !sessionThumbs.empty()) {
-                HFONT hFont = CreateFontA(
-                    -cachedLayout.fontSize,
-                    0, 0, 0,
-                    FW_SEMIBOLD,
-                    FALSE, FALSE, FALSE,
-                    DEFAULT_CHARSET,
-                    OUT_DEFAULT_PRECIS,
-                    CLIP_DEFAULT_PRECIS,
-                    CLEARTYPE_QUALITY,
-                    VARIABLE_PITCH,
-                    "Consolas"
-                );
-                HFONT oldFont = (HFONT)SelectObject(hdc, hFont);
+            if (isAltTildeSession && !sessionWindows.empty()) {
+                HFONT oldFont = (HFONT)SelectObject(hdc, hSwitcherFont);
                 char title[256];
                 GetWindowTextA(sessionWindows[sessionIndex], title, sizeof(title));
                 SetTextColor(hdc, RGB(255, 255, 255));
@@ -136,16 +127,14 @@ static LRESULT CALLBACK SwitcherWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPAR
                 HPEN hPen = CreatePen(PS_SOLID, 3, RGB(211, 211, 211)); 
                 HGDIOBJ oldPen = SelectObject(hdc, hPen);
                 HGDIOBJ oldBrush = SelectObject(hdc, GetStockObject(NULL_BRUSH));
-                RoundRect(hdc, highlightRect.left, highlightRect.top,  highlightRect.right, highlightRect.bottom, 15, 15);
-                
+                RoundRect(hdc, highlightRect.left, highlightRect.top, highlightRect.right, highlightRect.bottom, 15, 15);
+
                 SelectObject(hdc, oldFont);
                 SelectObject(hdc, oldPen);
                 SelectObject(hdc, oldBrush);
 
-                DeleteObject(hFont);
                 DeleteObject(hPen);
             }
-            
             EndPaint(hwnd, &ps);
             return 0;
         }
@@ -159,20 +148,40 @@ static LRESULT CALLBACK SwitcherWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPAR
 static void CreateSwitcherUI() {
     if (hSwitcherWindow) return;
 
+    if (!classRegistered) {
+        hSwitcherBackBrush = CreateSolidBrush(RGB(25, 25, 25));
+        
+        WNDCLASSA wndClass {};
+        wndClass.lpfnWndProc   = SwitcherWndProc;
+        wndClass.hInstance     = GetModuleHandle(NULL);
+        wndClass.lpszClassName = "SwitcherCanvas";
+        wndClass.hbrBackground = hSwitcherBackBrush;
+        wndClass.hCursor       = LoadCursor(NULL, IDC_ARROW);
+        
+        if (RegisterClassA(&wndClass)) {
+            classRegistered = true;
+        }
+    }
+
+    if (!hSwitcherFont) {
+        hSwitcherFont = CreateFontA(-cachedLayout.fontSize, 0, 0, 0, FW_SEMIBOLD, 
+                                   FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, 
+                                   CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, VARIABLE_PITCH, "Consolas");
+    }
+
     int x = (GetSystemMetrics(SM_CXSCREEN) - cachedLayout.winW)/2;
     int y = (GetSystemMetrics(SM_CYSCREEN) - cachedLayout.winH)/2;
-    
-    WNDCLASSA wndClass {};
-    wndClass.lpfnWndProc   = SwitcherWndProc;
-    wndClass.hInstance     = GetModuleHandle(NULL);
-    wndClass.lpszClassName = "SwitcherCanvas";
-    wndClass.hbrBackground = CreateSolidBrush(RGB(25, 25, 25));
-    wndClass.hCursor       = LoadCursor(NULL, IDC_ARROW);
-    RegisterClassA(&wndClass);
 
-    DWORD dwExStyle = WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TOOLWINDOW;
-    DWORD dwStyle = WS_POPUP | WS_VISIBLE;
-    hSwitcherWindow = CreateWindowExA(dwExStyle, "SwitcherCanvas", NULL, dwStyle, x, y, cachedLayout.winW, cachedLayout.winH, NULL, NULL, wndClass.hInstance, NULL);
+    hSwitcherWindow = CreateWindowExA(
+        WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TOOLWINDOW, 
+        "SwitcherCanvas",
+        NULL,
+        WS_POPUP | WS_VISIBLE, 
+        x, y, cachedLayout.winW, cachedLayout.winH, 
+        NULL, NULL,
+        GetModuleHandle(NULL),
+        NULL
+    );
 
     SetLayeredWindowAttributes(hSwitcherWindow, 0, 255, LWA_ALPHA);
 }

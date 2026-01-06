@@ -1,8 +1,12 @@
 #include "common.hpp"
 #include "vscodelauncher.hpp"
 
+static bool launcherClassRegistered = false;
 static HWND hLauncherWindow = NULL;
+static HBRUSH hLauncherBgBrush = NULL;
 static HWND hEdit = NULL;
+static HBRUSH hEditBgBrush = NULL;
+static HBRUSH hListBoxBgBrush = NULL;
 static HWND hListBox = NULL;
 static HWND hPathLabel = NULL;
 static HFONT hGlobalFont = NULL;
@@ -144,6 +148,7 @@ static void BackgroundCrawl() {
         isScanning = false;
     });
     worker.detach();
+
 }
 
 static void RefreshMatches(std::string input) {    
@@ -268,95 +273,6 @@ static void LaunchSelectedPath(int selected) {
     }
 }
 
-static LRESULT CALLBACK LauncherWindProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-    switch (msg) {
-        case WM_CTLCOLOREDIT: {
-            HDC hdc = (HDC)wParam;
-            SetTextColor(hdc, RGB(255, 255, 255));
-            SetBkColor(hdc, RGB(30, 30, 30));
-            static HBRUSH hbrEdit = CreateSolidBrush(RGB(30, 30, 30));
-            return (INT_PTR)hbrEdit;
-        }
-        case WM_CTLCOLORLISTBOX: {
-            HDC hdc = (HDC)wParam;
-            SetTextColor(hdc, RGB(220, 220, 220));
-            SetBkColor(hdc, RGB(45, 45, 45));
-            static HBRUSH hbrList = CreateSolidBrush(RGB(45, 45, 45));
-            return (INT_PTR)hbrList;
-        }
-        case WM_CTLCOLORSTATIC: {
-            HDC hdc = (HDC)wParam;
-            SetTextColor(hdc, RGB(150, 150, 150));
-            SetBkColor(hdc, RGB(30, 30, 30));
-            static HBRUSH hbrStatic = CreateSolidBrush(RGB(30, 30, 30));
-            return (INT_PTR)hbrStatic;
-        }
-        case WM_DRAWITEM: {
-            PDRAWITEMSTRUCT pdis = (PDRAWITEMSTRUCT)lParam;
-            if (pdis->itemID == (UINT)-1) break;
-            COLORREF bgColor;
-            COLORREF textColor = RGB(220, 220, 220);
-
-            if (pdis->itemState && ODS_SELECTED) {
-                bgColor = RGB(80, 80, 80); 
-                textColor = RGB(255, 255, 255);
-            } else {
-                bgColor = RGB(45, 45, 45);
-            }
-
-            HBRUSH hbrush = CreateSolidBrush(bgColor);
-            FillRect(pdis->hDC, &pdis->rcItem, hbrush);
-            DeleteObject(hbrush);
-
-            char buffer[256];
-            SendMessage(pdis->hwndItem, LB_GETTEXT, pdis->itemID, (LPARAM)buffer);
-            SetBkMode(pdis->hDC, textColor);
-            RECT textRect = pdis->rcItem;
-            textRect.left += 5;
-            DrawTextA(pdis->hDC, buffer, -1, &textRect, DT_SINGLELINE | DT_VCENTER);
-
-            return TRUE;
-        }
-        case WM_COMMAND: {
-            if (HIWORD(wParam) == EN_CHANGE) {
-                char buffer[256];
-                GetWindowTextA(hEdit, buffer, 256);
-                RefreshMatches(std::string(buffer));
-                
-                int count = (int)SendMessage(hListBox, LB_GETCOUNT, 0, 0);
-                if (buffer[0] == '\0' || count <= 0) {
-                    SetWindowTextA(hPathLabel, "");
-                } else {
-                    int sel = (int)SendMessage(hListBox, LB_GETCURSEL, 0, 0);
-                    if (sel != LB_ERR && sel < (int)currentMatches.size()) {
-                        SetWindowTextA(hPathLabel, currentMatches[sel].c_str());
-                    }
-                }
-            }
-            return 0;
-        }
-        case WM_ACTIVATE: {
-            if (LOWORD(wParam) == WA_INACTIVE) {
-                DestroyWindow(hwnd);
-            }
-            return 0;
-        }
-        case WM_DESTROY: {
-            if (hGlobalFont) {
-                DeleteObject(hGlobalFont);
-                hGlobalFont = NULL;
-            }
-            if (hSmallFont) {
-                DeleteObject(hSmallFont);
-                hSmallFont = NULL;
-            }
-            hLauncherWindow = NULL;
-            return 0;
-        }
-    }
-    return DefWindowProc(hwnd, msg, wParam, lParam);
-}
-
 static LRESULT CALLBACK EditSubclassProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR /*uIdSubClass*/, DWORD_PTR /*dwRefData*/) {
     if (uMsg == WM_KEYDOWN) {
         switch (wParam) {
@@ -436,6 +352,110 @@ static LRESULT CALLBACK ListBoxSubclassProc(HWND hwnd, UINT uMsg, WPARAM wParam,
     return DefSubclassProc(hwnd, uMsg, wParam, lParam);
 }
 
+static LRESULT CALLBACK LauncherWindProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    switch (msg) {
+        case WM_CTLCOLOREDIT: {
+            HDC hdc = (HDC)wParam;
+            SetTextColor(hdc, RGB(255, 255, 255));
+            SetBkColor(hdc, RGB(30, 30, 30));
+            return (INT_PTR)hEditBgBrush;
+        }
+        case WM_CTLCOLORLISTBOX: {
+            HDC hdc = (HDC)wParam;
+            SetTextColor(hdc, RGB(220, 220, 220));
+            SetBkColor(hdc, RGB(45, 45, 45));
+            return (INT_PTR)hListBoxBgBrush;
+        }
+        case WM_CTLCOLORSTATIC: {
+            HDC hdc = (HDC)wParam;
+            SetTextColor(hdc, RGB(150, 150, 150));
+            SetBkColor(hdc, RGB(30, 30, 30));
+            return (INT_PTR)hEditBgBrush;
+        }
+        case WM_DRAWITEM: {
+            PDRAWITEMSTRUCT pdis = (PDRAWITEMSTRUCT)lParam;
+            if (pdis->itemID == (UINT)-1) break;
+            COLORREF bgColor = (pdis->itemState & ODS_SELECTED) ? RGB(80, 80, 80) : RGB(45, 45, 45);
+            COLORREF textColor = (pdis->itemState & ODS_SELECTED) ? RGB(255, 255, 255) : RGB(220, 220, 220);
+            
+            HGDIOBJ oldBrush = SelectObject(pdis->hDC, GetStockObject(DC_BRUSH));
+            SetDCBrushColor(pdis->hDC, bgColor);
+            FillRect(pdis->hDC, &pdis->rcItem, (HBRUSH)GetStockObject(DC_BRUSH));
+            SelectObject(pdis->hDC, oldBrush);
+
+            char buffer[256];
+            SendMessage(pdis->hwndItem, LB_GETTEXT, pdis->itemID, (LPARAM)buffer);
+            SetTextColor(pdis->hDC, textColor);
+            SetBkMode(pdis->hDC, TRANSPARENT);
+            RECT textRect = pdis->rcItem;
+            textRect.left += 5;
+            DrawTextA(pdis->hDC, buffer, -1, &textRect, DT_SINGLELINE | DT_VCENTER);
+
+            return TRUE;
+        }
+        case WM_COMMAND: {
+            if (HIWORD(wParam) == EN_CHANGE) {
+                char buffer[256];
+                GetWindowTextA(hEdit, buffer, 256);
+                RefreshMatches(std::string(buffer));
+                
+                int count = (int)SendMessage(hListBox, LB_GETCOUNT, 0, 0);
+                if (buffer[0] == '\0' || count <= 0) {
+                    SetWindowTextA(hPathLabel, "");
+                } else {
+                    int sel = (int)SendMessage(hListBox, LB_GETCURSEL, 0, 0);
+                    if (sel != LB_ERR && sel < (int)currentMatches.size()) {
+                        SetWindowTextA(hPathLabel, currentMatches[sel].c_str());
+                    }
+                }
+            }
+            return 0;
+        }
+        case WM_ACTIVATE: {
+            if (LOWORD(wParam) == WA_INACTIVE) {
+                DestroyWindow(hwnd);
+            }
+            return 0;
+        }
+        case WM_DESTROY: {
+            RemoveWindowSubclass(hEdit, EditSubclassProc, 0);
+            RemoveWindowSubclass(hListBox, ListBoxSubclassProc, 0);
+            
+            if (hGlobalFont) {
+                DeleteObject(hGlobalFont);
+                hGlobalFont = NULL;
+            }
+            if (hSmallFont) {
+                DeleteObject(hSmallFont);
+                hSmallFont = NULL;
+            }
+            SetWindowRgn(hwnd, NULL, FALSE);
+            hLauncherWindow = NULL;
+
+            return 0;
+        }
+    }
+    return DefWindowProc(hwnd, msg, wParam, lParam);
+}
+
+static void RegisterLauncherClassOnce() {
+    if (launcherClassRegistered) return;
+
+    hLauncherBgBrush = CreateSolidBrush(RGB(30, 30, 30));
+    hEditBgBrush = CreateSolidBrush(RGB(30, 30, 30));
+    hListBoxBgBrush = CreateSolidBrush(RGB(45, 45, 45));
+
+    WNDCLASSA wndClass {};
+    wndClass.lpfnWndProc = LauncherWindProc;
+    wndClass.hInstance = GetModuleHandle(NULL);
+    wndClass.lpszClassName = "VSCodeLauncher";
+    wndClass.hbrBackground = hLauncherBgBrush;
+    wndClass.hCursor = LoadCursor(NULL, IDC_ARROW);
+    RegisterClassA(&wndClass);
+    
+    launcherClassRegistered = true;
+}
+
 bool ShowLauncher() {
     bool ctrl = GetAsyncKeyState(VK_CONTROL) & 0x8000;
     bool alt  = GetAsyncKeyState(VK_MENU)    & 0x8000;
@@ -448,12 +468,7 @@ bool ShowLauncher() {
         return true;
     }
 
-    WNDCLASSA wndClass {};
-    wndClass.lpfnWndProc = LauncherWindProc;
-    wndClass.hInstance = GetModuleHandle(NULL);
-    wndClass.lpszClassName = "VSCodeLauncher";
-    wndClass.hbrBackground = CreateSolidBrush(RGB(30, 30, 30));
-    RegisterClassA(&wndClass);
+    RegisterLauncherClassOnce();
 
     int screenW = GetSystemMetrics(SM_CXSCREEN);
     int screenH = GetSystemMetrics(SM_CYSCREEN);
@@ -463,15 +478,14 @@ bool ShowLauncher() {
     int winX = (screenW - winW) / 2;
     int winY = (screenH - winH) / 3;
 
-    DWORD dwStyle = WS_POPUP | WS_VISIBLE;
     hLauncherWindow = CreateWindowExA(
         WS_EX_TOPMOST,
         "VSCodeLauncher",
         NULL,
-        dwStyle,
+        WS_POPUP | WS_VISIBLE,
         winX, winY, winW , winH,
         NULL, NULL,
-        wndClass.hInstance,
+        GetModuleHandle(NULL),
         NULL
     );
 
@@ -479,19 +493,47 @@ bool ShowLauncher() {
     int currentY   = margin;
     int innerWidth = winW - (margin * 2);
 
-    dwStyle = WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL;
     int editH = winH * 0.12;
-    hEdit = CreateWindowExA(0, "EDIT", "", dwStyle, margin, currentY, innerWidth, editH, hLauncherWindow, NULL, wndClass.hInstance, NULL);
+    hEdit = CreateWindowExA(
+        0,
+        "EDIT",
+        "",
+         WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL,
+         margin, currentY, innerWidth, editH,
+         hLauncherWindow,
+         NULL,
+         GetModuleHandle(NULL),
+         NULL
+    );
     currentY += editH + (margin / 2);
 
-    dwStyle = WS_CHILD | WS_VISIBLE | WS_VSCROLL | LBS_NOTIFY | LBS_HASSTRINGS | LBS_OWNERDRAWFIXED;
     int pathH = winH * 0.10;
     int listH = winH - currentY - pathH - (margin * 2);
-    hListBox = CreateWindowExA(0, "LISTBOX", NULL, dwStyle, margin, currentY, innerWidth, listH, hLauncherWindow, NULL, wndClass.hInstance, NULL);
+    hListBox = CreateWindowExA(
+        0,
+        "LISTBOX",
+        NULL,
+        WS_CHILD | WS_VISIBLE | WS_VSCROLL | LBS_NOTIFY | LBS_HASSTRINGS | LBS_OWNERDRAWFIXED,
+        margin, currentY, innerWidth, listH,
+        hLauncherWindow,
+        NULL,
+        GetModuleHandle(NULL),
+        NULL
+    );
     currentY += listH + (margin / 2);
 
-    dwStyle = WS_CHILD | WS_VISIBLE | SS_LEFTNOWORDWRAP;
-    hPathLabel = CreateWindowExA(0, "STATIC", "",  dwStyle, margin, currentY, innerWidth, pathH, hLauncherWindow, NULL, wndClass.hInstance, NULL);
+    hPathLabel = CreateWindowExA(
+        0,
+        "STATIC",
+        "",
+        WS_CHILD | WS_VISIBLE | SS_LEFTNOWORDWRAP,
+        margin, currentY, innerWidth,
+        pathH,
+        hLauncherWindow,
+        NULL,
+        GetModuleHandle(NULL),
+        NULL
+    );
  
     ApplyScaledFonts(winH);
 

@@ -1,8 +1,10 @@
 #include "common.hpp"
 #include "applifecycle.hpp"
 
+static bool isRegistered = false;
 static HWND hQuitDlg = NULL;
 static HFONT hFont = NULL;
+static HBRUSH hBgBrush = NULL;
 
 static int winW = 0;
 static int winH = 0;
@@ -35,9 +37,9 @@ static LRESULT CALLBACK QuitDialogProc(HWND hwnd, UINT msg, WPARAM wParam, LPARA
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hwnd, &ps);
 
-            SelectObject(hdc, hFont);
+            HGDIOBJ hOldFont = SelectObject(hdc, hFont);
             SetTextColor(hdc, RGB(255, 255, 255));
-            SetBkColor(hdc, RGB(30, 30, 30));
+            SetBkMode(hdc, TRANSPARENT);
 
             RECT rect;
             GetClientRect(hwnd, &rect);
@@ -49,6 +51,7 @@ static LRESULT CALLBACK QuitDialogProc(HWND hwnd, UINT msg, WPARAM wParam, LPARA
             SetTextColor(hdc, RGB(180, 180, 180));
             DrawTextA(hdc, "[Enter] Confirm    [Esc] Cancel", -1, &rect, DT_CENTER | DT_SINGLELINE);
 
+            SelectObject(hdc, hOldFont);
             EndPaint(hwnd, &ps);
             break;
         }
@@ -61,6 +64,7 @@ static LRESULT CALLBACK QuitDialogProc(HWND hwnd, UINT msg, WPARAM wParam, LPARA
                 DeleteObject(hFont);
                 hFont = NULL;
             }
+            SetWindowRgn(hwnd, NULL, FALSE);
             hQuitDlg = NULL;
             return 0;
         }
@@ -90,14 +94,14 @@ bool InitiateQuitSequence() {
 
     fontSize = winH * 0.12;
 
-    static bool isRegistered = false;
     if (!isRegistered) {
         WNDCLASSA wndClass {};
         wndClass.lpfnWndProc = QuitDialogProc;
         wndClass.hInstance = GetModuleHandle(NULL);
         wndClass.lpszClassName = "QuitDialogClass";
         wndClass.hCursor = LoadCursor(NULL, IDC_ARROW);
-        wndClass.hbrBackground = CreateSolidBrush(RGB(30, 30, 30));
+        hBgBrush = CreateSolidBrush(RGB(30, 30, 30));
+        wndClass.hbrBackground = hBgBrush;
         RegisterClassA(&wndClass);
         isRegistered = true;
     }
