@@ -270,16 +270,20 @@ void ResetAltTildeSession(DWORD vkCode) {
     if (vkCode == VK_MENU || vkCode == VK_RETURN) {
         if (sessionIndex < sessionWindows.size()) {
             HWND target = sessionWindows[sessionIndex];
-            
+
+            if (hSwitcherWindow) ShowWindow(hSwitcherWindow, SW_HIDE);            
             if (IsIconic(target)) ShowWindow(target, SW_RESTORE);
+
+            keybd_event(0xFC, 0, 0, 0);
+            keybd_event(0xFC, 0, KEYEVENTF_KEYUP, 0);
+
             AllowSetForegroundWindow(ASFW_ANY);
             SetForegroundWindow(target);
             SetActiveWindow(target);
         }
-        for (auto t : sessionThumbs) {
-            DwmUnregisterThumbnail(t);
-        }
+        for (auto t : sessionThumbs) DwmUnregisterThumbnail(t);
         sessionThumbs.clear();
+
         if (hSwitcherWindow) {
             DestroyWindow(hSwitcherWindow);
             hSwitcherWindow = NULL;
