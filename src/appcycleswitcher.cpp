@@ -187,26 +187,28 @@ static void CreateSwitcherUI() {
 }
 
 static void UpdateThumbnailGallery() {
-    for (auto t : sessionThumbs) {
-        DwmUnregisterThumbnail(t);
-    }
-    sessionThumbs.clear();
+    if (sessionWindows.empty()) return;
 
-    if (sessionWindows.empty()) {
-        return;
-    }
+    bool isInitialLoad = sessionThumbs.empty();
+
+    DWM_THUMBNAIL_PROPERTIES props {};
+    props.dwFlags = DWM_TNP_VISIBLE | DWM_TNP_RECTDESTINATION | DWM_TNP_OPACITY | DWM_TNP_SOURCECLIENTAREAONLY;
+    props.fSourceClientAreaOnly = TRUE;
+    props.fVisible = TRUE;
 
     for (size_t i=0; i<sessionWindows.size(); ++i) {
         HTHUMBNAIL hCurrentThumb = NULL;
-        if (SUCCEEDED(DwmRegisterThumbnail(hSwitcherWindow, sessionWindows[i], &hCurrentThumb))) {
-            DWM_THUMBNAIL_PROPERTIES props {};
-            props.dwFlags = DWM_TNP_VISIBLE | DWM_TNP_RECTDESTINATION | DWM_TNP_OPACITY;
-            props.fVisible = TRUE;
-            props.rcDestination = GetThumbRect(cachedLayout, i, sessionWindows.size());
-            props.opacity = (i == sessionIndex) ? 255 : 170;
-
-            DwmUpdateThumbnailProperties(hCurrentThumb, &props);
-            sessionThumbs.push_back(hCurrentThumb);
+        if (isInitialLoad) {
+            if (SUCCEEDED(DwmRegisterThumbnail(hSwitcherWindow, sessionWindows[i], &hCurrentThumb))) {
+                sessionThumbs.push_back(hCurrentThumb);
+            } else {
+                hCurrentThumb = sessionThumbs[i];
+            }
+            if (hCurrentThumb) {
+                props.opacity = (i == sessionIndex) ? 255 : 170;
+                props.rcDestination = GetThumbRect(cachedLayout, i, sessionWindows.size());
+                DwmUpdateThumbnailProperties(hCurrentThumb, &props);
+            }
         }
     }
 }
@@ -310,9 +312,9 @@ void AppCycleSwitcher(DWORD vkCode) {
                 isAltTildeSession = true;
                 cachedLayout = CalculateSwitcherLayout(sessionWindows.size());
                 CreateSwitcherUI();
+                UpdateThumbnailGallery();
                 ShowWindow(hSwitcherWindow, SW_SHOW);
                 UpdateWindow(hSwitcherWindow);
-                UpdateThumbnailGallery();
             }
         }
     }
@@ -325,6 +327,6 @@ void AppCycleSwitcher(DWORD vkCode) {
             HandleArrowNavigation(vkCode);
         }
         UpdateThumbnailGallery();
-        InvalidateRect(hSwitcherWindow, NULL, TRUE);
+        InvalidateRect(hSwitcherWindow, NULL, FALSE);
     }
 }
