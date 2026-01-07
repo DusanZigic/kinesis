@@ -10,37 +10,40 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
         bool isDown = (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN);
         bool isUp   = (wParam == WM_KEYUP   || wParam == WM_SYSKEYUP);
         
-        if (IsSwitcherActive()) {
-            if (isDown) {
-                if (pKeyBoard->vkCode == VK_LEFT || pKeyBoard->vkCode == VK_RIGHT || 
-                    pKeyBoard->vkCode == VK_UP   || pKeyBoard->vkCode == VK_DOWN) {
-                    AppCycleSwitcher(pKeyBoard->vkCode);
+        bool ctrlHeld = (GetAsyncKeyState(VK_CONTROL) & 0x8000);
+        bool altHeld  = (GetAsyncKeyState(VK_MENU) & 0x8000);
+
+        if (isDown) {
+            if (ctrlHeld && altHeld) {
+                if (pKeyBoard->vkCode == 'V') {
+                    ShowLauncher();
                     return 1;
                 }
-                if (pKeyBoard->vkCode == VK_OEM_3) {
-                    AppCycleSwitcher(VK_OEM_3);
-                    return 1; 
+                if (pKeyBoard->vkCode == 'Q') {
+                    InitiateQuitSequence();
+                    return 1;
+                }
+            }
+            if (IsSwitcherActive()) {
+                if (pKeyBoard->vkCode == VK_LEFT || pKeyBoard->vkCode == VK_RIGHT || 
+                    pKeyBoard->vkCode == VK_UP   || pKeyBoard->vkCode == VK_DOWN || 
+                    pKeyBoard->vkCode == VK_OEM_3) {
+                    AppCycleSwitcher(pKeyBoard->vkCode);
+                    return 1;
                 }
                 if (pKeyBoard->vkCode == VK_RETURN) {
                     ResetAltTildeSession(VK_RETURN);
                     return 1;
                 }
             }
-        }
-        if (wParam == WM_SYSKEYDOWN) {
-            if (pKeyBoard->vkCode >= '1' && pKeyBoard->vkCode <= '9') {
-                if (SwitchTabs(pKeyBoard->vkCode)) return 1;
-            }
-            if (pKeyBoard->vkCode == VK_OEM_3) {
+            if (wParam == WM_SYSKEYDOWN && pKeyBoard->vkCode == VK_OEM_3 && !ctrlHeld) {
                 AppCycleSwitcher(0); 
                 return 1;
             }
-        }
-        if (isDown && pKeyBoard->vkCode == 'V') {
-            if (ShowLauncher()) return 1;
-        }
-        if (isDown && pKeyBoard->vkCode == 'Q') {
-            if (InitiateQuitSequence()) return 1;
+            if (wParam == WM_SYSKEYDOWN && pKeyBoard->vkCode >= '1' && pKeyBoard->vkCode <= '9') {
+                if (SwitchTabs(pKeyBoard->vkCode)) return 1;
+            }
+
         }
         if (isUp) {
             if (pKeyBoard->vkCode == VK_MENU || pKeyBoard->vkCode == VK_LMENU || pKeyBoard->vkCode == VK_RMENU) {

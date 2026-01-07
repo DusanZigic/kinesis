@@ -28,9 +28,11 @@ static LRESULT CALLBACK QuitDialogProc(HWND hwnd, UINT msg, WPARAM wParam, LPARA
         }
         case WM_KEYDOWN:
             if (wParam == VK_RETURN) {
-                PostQuitMessage(0); 
+                PostQuitMessage(0);
+                return 0;
             } else if (wParam == VK_ESCAPE) {
                 PostMessage(hwnd, WM_CLOSE, 0, 0);
+                return 0;
             }
             break;
         case WM_PAINT: {
@@ -72,16 +74,10 @@ static LRESULT CALLBACK QuitDialogProc(HWND hwnd, UINT msg, WPARAM wParam, LPARA
     return DefWindowProc(hwnd, msg, wParam, lParam);
 }
 
-bool InitiateQuitSequence() {
-    bool ctrl = GetAsyncKeyState(VK_CONTROL) & 0x8000;
-    bool alt  = GetAsyncKeyState(VK_MENU)    & 0x8000;
-    if (!(ctrl && alt)) {
-        return false;
-    }
-
+void InitiateQuitSequence() {
     if (hQuitDlg && IsWindow(hQuitDlg)) {
         SetForegroundWindow(hQuitDlg);
-        return true;
+        return;
     }
 
     int screenW = GetSystemMetrics(SM_CXSCREEN);
@@ -136,24 +132,11 @@ bool InitiateQuitSequence() {
     HRGN hMainRgn = CreateRoundRectRgn(0, 0, winW, winH, cornerRadius, cornerRadius);
     SetWindowRgn(hQuitDlg, hMainRgn, TRUE);
 
+    AllowSetForegroundWindow(ASFW_ANY);
+    keybd_event(0xFC, 0, 0, 0);
+    keybd_event(0xFC, 0, KEYEVENTF_KEYUP, 0);
     ShowWindow(hQuitDlg, SW_SHOW);
-    UpdateWindow(hQuitDlg);
-
-    HWND hForce = GetForegroundWindow();
-    DWORD foreThread = GetWindowThreadProcessId(hForce, NULL);
-    DWORD appThread = GetCurrentThreadId();
-
-    if (foreThread != appThread) {
-        AttachThreadInput(foreThread, appThread, TRUE);
-        SetForegroundWindow(hQuitDlg);
-        SetActiveWindow(hQuitDlg);
-        SetFocus(hQuitDlg);
-        AttachThreadInput(foreThread, appThread, FALSE);
-    } else {
-        SetForegroundWindow(hQuitDlg);
-        SetActiveWindow(hQuitDlg);
-        SetFocus(hQuitDlg);
-    }
-
-    return true;
+    SetForegroundWindow(hQuitDlg);
+    SetActiveWindow(hQuitDlg);
+    SetFocus(hQuitDlg);
 }

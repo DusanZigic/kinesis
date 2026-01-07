@@ -456,16 +456,10 @@ static void RegisterLauncherClassOnce() {
     launcherClassRegistered = true;
 }
 
-bool ShowLauncher() {
-    bool ctrl = GetAsyncKeyState(VK_CONTROL) & 0x8000;
-    bool alt  = GetAsyncKeyState(VK_MENU)    & 0x8000;
-    if (!(ctrl && alt)) {
-        return false;
-    }
-
+void ShowLauncher() {
     if (hLauncherWindow != NULL) {
         SetForegroundWindow(hLauncherWindow);
-        return true;
+        return;
     }
 
     RegisterLauncherClassOnce();
@@ -479,7 +473,7 @@ bool ShowLauncher() {
     int winY = (screenH - winH) / 3;
 
     hLauncherWindow = CreateWindowExA(
-        WS_EX_TOPMOST,
+        WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
         "VSCodeLauncher",
         NULL,
         WS_POPUP | WS_VISIBLE,
@@ -550,22 +544,11 @@ bool ShowLauncher() {
     BackgroundCrawl();
     RefreshMatches("");
 
+    AllowSetForegroundWindow(ASFW_ANY);
+    keybd_event(0xFC, 0, 0, 0);
+    keybd_event(0xFC, 0, KEYEVENTF_KEYUP, 0);
     ShowWindow(hLauncherWindow, SW_SHOW);
-    UpdateWindow(hLauncherWindow);
-
-    HWND hForce = GetForegroundWindow();
-    DWORD foreThread = GetWindowThreadProcessId(hForce, NULL);
-    DWORD appThread = GetCurrentThreadId();
-
-    if (foreThread != appThread) {
-        AttachThreadInput(foreThread, appThread, TRUE);
-        SetForegroundWindow(hLauncherWindow);
-        SetFocus(hEdit);
-        AttachThreadInput(foreThread, appThread, FALSE);
-    } else {
-        SetForegroundWindow(hLauncherWindow);
-        SetFocus(hEdit);
-    }
-
-    return true;
+    SetForegroundWindow(hLauncherWindow);
+    SetActiveWindow(hLauncherWindow);
+    SetFocus(hEdit);
 }
