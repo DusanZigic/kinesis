@@ -2,7 +2,7 @@
 #include "tabswitcher.hpp"
 #include "appcycleswitcher.hpp"
 #include "vscodelauncher.hpp"
-#include "applifecycle.hpp"
+#include "quitsequence.hpp"
 
 LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
     if (nCode == HC_ACTION) {
@@ -58,7 +58,6 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
 }
 
 int main() {
-    // ProductivitySuite
     INITCOMMONCONTROLSEX icex;
     icex.dwSize = sizeof(INITCOMMONCONTROLSEX);
     icex.dwICC  = ICC_STANDARD_CLASSES;

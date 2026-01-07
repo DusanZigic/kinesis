@@ -1,5 +1,5 @@
 #include "common.hpp"
-#include "applifecycle.hpp"
+#include "quitsequence.hpp"
 
 static bool isRegistered = false;
 static HWND hQuitDlg = NULL;
@@ -47,7 +47,7 @@ static LRESULT CALLBACK QuitDialogProc(HWND hwnd, UINT msg, WPARAM wParam, LPARA
             GetClientRect(hwnd, &rect);
 
             rect.top = winH*0.20;
-            DrawTextA(hdc, "Quit Productivity Suite?", -1, &rect, DT_CENTER | DT_SINGLELINE);
+            DrawTextA(hdc, "quit kinesis?", -1, &rect, DT_CENTER | DT_SINGLELINE);
 
             rect.top = winH - winH*0.20 - fontSize;
             SetTextColor(hdc, RGB(180, 180, 180));
