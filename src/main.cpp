@@ -80,5 +80,7 @@ int main() {
 
     UnhookWindowsHookEx(hhkLowLevelKybd);
 
+    CoUninitialize();
+
     return (int)msg.wParam;
 }

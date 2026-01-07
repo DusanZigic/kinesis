@@ -12,6 +12,10 @@ static HWND hPathLabel = NULL;
 static HFONT hGlobalFont = NULL;
 static HFONT hSmallFont = NULL;
 
+static std::string VSCodeExe = "";
+static std::string VSCodeCli = "";
+static bool isVSCodeFound = false;
+
 static const size_t maxPathsN = 5;
 static const int maxSubFolderDepth = 5;
 static std::vector<std::string> currentMatches;
@@ -22,33 +26,53 @@ static int pendingIndex = -1;
 static std::atomic<bool> isScanning(false);
 static std::mutex crawlMutex;
 
-static std::string GetEnvVar(const std::string& key) {
-    char buffer[MAX_PATH];
-    DWORD result = GetEnvironmentVariableA(key.c_str(), buffer, MAX_PATH);
-    if (result > 0 && result < MAX_PATH) {
-        return std::string(buffer);
+static std::string GetEnv(const std::string& var) {
+    char buf[MAX_PATH];
+    DWORD res = GetEnvironmentVariableA(var.c_str(), buf, MAX_PATH);
+    return (res > 0 && res < MAX_PATH) ? std::string(buf) : "";
+}
+
+static std::string FindVSCodeRoot() {
+    std::vector<std::string> searchBases = {
+        GetEnv("LOCALAPPDATA") + "\\Programs\\Microsoft VS Code",
+        GetEnv("ProgramFiles") + "\\Microsoft VS Code",
+        "C:\\Program Files\\Microsoft VS Code",
+        "C:\\Program Files (x86)\\Microsoft VS Code"
+    };
+
+    for (const auto& base : searchBases) {
+        if (base.length() < 5) continue;
+        fs::path rootPath(base);
+        fs::path exePath = rootPath / "Code.exe";
+        fs::path cliPath = rootPath / "resources" / "app" / "out" / "cli.js";
+        if (fs::exists(exePath) && fs::exists(cliPath)) {
+            return rootPath.string();
+        }
     }
+
+    char pathBuf[MAX_PATH];
+    if (SearchPathA(NULL, "code", ".cmd", MAX_PATH, pathBuf, NULL)) {
+        fs::path cmdPath(pathBuf);
+        fs::path rootPath = cmdPath.parent_path().parent_path();
+        if (fs::exists(rootPath / "Code.exe")) {
+            return rootPath.string();
+        }
+    }
+
     return "";
 }
 
-static std::string FindVSCodeExecutable() {
-    std::string localAppData = GetEnvVar("LOCALAPPDATA");
-    std::string programFiles = GetEnvVar("ProgramFiles");
-
-    std::vector<std::string> searchPaths = {
-        std::string(localAppData) + "\\Programs\\Microsoft VS Code\\bin\\code.exe",
-        "C:\\Program Files\\Microsoft VS Code\\bin\\code.exe",
-        "C:\\Program Files (x86)\\Microsoft VS Code\\bin\\code.exe",
-        std::string(localAppData) + "\\Programs\\Microsoft VS Code\\bin\\code.cmd",
-        "C:\\Program Files\\Microsoft VS Code\\bin\\code.cmd",
-        "C:\\Program Files (x86)\\Microsoft VS Code\\bin\\code.cmd"
-    };
-
-    for (const auto& path : searchPaths) {
-        if (fs::exists(path)) return path;
+static void InitializeVSCodePath() {
+    std::string root = FindVSCodeRoot();
+    if (!root.empty()) {
+        std::string exe = root + "\\Code.exe";
+        std::string cli = root + "\\resources\\app\\out\\cli.js";
+        if (fs::exists(exe) && fs::exists(cli)) {
+            VSCodeExe = exe;
+            VSCodeCli = cli;
+            isVSCodeFound = true;
+        }
     }
-
-    return "";
 }
 
 static void LoadHistory() {
@@ -123,9 +147,9 @@ static void ScanDirectory(const std::string& path, std::vector<std::string>& res
 }
 
 static void BackgroundCrawl() {
-    if (isScanning.exchange(true)) {
-        return;
-    }
+    if (!isVSCodeFound) return;
+    
+    if (isScanning.exchange(true)) return;
 
     std::thread worker([]() {
         std::vector<std::string> tempFolders;
@@ -208,6 +232,9 @@ static void RefreshMatches(std::string input) {
 
 void InitializePaths() {
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    
+    InitializeVSCodePath();
+
     LoadHistory();
     BackgroundCrawl();
     RefreshMatches("");
@@ -256,21 +283,27 @@ static void ApplyScaledFonts(int winHeight) {
     SendMessage(hPathLabel, WM_SETFONT, (WPARAM)hSmallFont,  TRUE);
 }
 
-static void LaunchSelectedPath(int selected) {
-    std::string vsCodeExe = FindVSCodeExecutable();
-    if (vsCodeExe.empty()) {
-        MessageBoxA(hLauncherWindow, "VS Code not found in standard paths!", "Error", MB_ICONERROR);
-    } else {
-        AddToHistory(currentMatches[selected]);
-        std::string  commandLine = "\"" + vsCodeExe + "\" \"" + currentMatches[selected] + "\"";
-        STARTUPINFOA si {};
-        si.cb = sizeof(si);
-        PROCESS_INFORMATION pi;
-        if (CreateProcessA(NULL, (LPSTR)commandLine.c_str(), NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
-            CloseHandle(pi.hProcess);
-            CloseHandle(pi.hThread);
-        }
+static void OpenFolderInVSCode(int selected) {
+    if (!isVSCodeFound) {
+        MessageBoxA(hLauncherWindow, "Could not find VSCode root folder, executable and/or 'cli.js' file!", "Error", MB_ICONERROR);
+        return; 
     }
+
+    AddToHistory(currentMatches[selected]);
+    SetEnvironmentVariableA("ELECTRON_RUN_AS_NODE", "1");
+    std::string cmd = "\"" + VSCodeExe + "\" \"" + VSCodeCli + "\" \"" + currentMatches[selected] + "\"";
+    std::vector<char> cmdBuffer(cmd.begin(), cmd.end());
+    cmdBuffer.push_back('\0');
+    STARTUPINFOA si {};
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_HIDE;
+    PROCESS_INFORMATION pi;
+    if (CreateProcessA(VSCodeExe.c_str(), cmdBuffer.data(), NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+    }
+    SetEnvironmentVariableA("ELECTRON_RUN_AS_NODE", NULL);
 }
 
 static LRESULT CALLBACK EditSubclassProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR /*uIdSubClass*/, DWORD_PTR /*dwRefData*/) {
@@ -280,7 +313,7 @@ static LRESULT CALLBACK EditSubclassProc(HWND hwnd, UINT uMsg, WPARAM wParam, LP
                 if (!currentMatches.empty()) {
                     int sel = SendMessage(hListBox, LB_GETCURSEL, 0, 0);
                     if (sel != LB_ERR && sel < (int)currentMatches.size()) {
-                        LaunchSelectedPath(sel);
+                        OpenFolderInVSCode(sel);
                     }
                     DestroyWindow(hLauncherWindow);
                     return 0;
@@ -343,7 +376,7 @@ static LRESULT CALLBACK ListBoxSubclassProc(HWND hwnd, UINT uMsg, WPARAM wParam,
         case WM_LBUTTONDOWN: {
             int sel = (int)SendMessage(hwnd, LB_GETCURSEL, 0, 0);
             if (sel != LB_ERR && sel < (int)currentMatches.size()) {
-                LaunchSelectedPath(sel);
+                OpenFolderInVSCode(sel);
             }
             DestroyWindow(hLauncherWindow);
             return 0;
