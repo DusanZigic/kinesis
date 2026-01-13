@@ -18,6 +18,7 @@ static bool isVSCodeFound = false;
 
 static const size_t maxPathsN = 5;
 static const int maxSubFolderDepth = 5;
+static std::vector<std::string> crawlerRootPaths;
 static std::vector<std::string> currentMatches;
 static std::vector<std::string> history;
 static std::vector<std::string> allCrawledFolders;
@@ -120,26 +121,104 @@ void AddToHistory(const std::string& newPath) {
     SaveHistory();
 }
 
-static void ScanDirectory(const std::string& path, std::vector<std::string>& results, int depth) {
-    if (depth > maxSubFolderDepth) {
-        return;
+static std::string GetKnownFolderPath(REFKNOWNFOLDERID rfid) {
+    PWSTR pszPath = NULL;
+    std::string path = "";
+    if (SUCCEEDED(SHGetKnownFolderPath(rfid, 0, NULL, &pszPath))) {
+        int size = WideCharToMultiByte(CP_UTF8, 0, pszPath, -1, NULL, 0, NULL, NULL);
+        if (size > 0) {
+            std::vector<char> buf(size);
+            WideCharToMultiByte(CP_UTF8, 0, pszPath, -1, buf.data(), size, NULL, NULL);
+            path = buf.data();
+        }
+        CoTaskMemFree(pszPath);
     }
+    return path;
+}
+
+static const std::vector<std::string> GetOneDrivePaths() {
+    std::vector<std::string> paths;
+    HKEY hKey;
+
+    const char* subkey = "Software\\Microsoft\\OneDrive\\Accounts";
+
+    if (RegOpenKeyExA(HKEY_CURRENT_USER, subkey, 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+        char accountName[256];
+        DWORD nameSize = sizeof(accountName);
+
+        for (DWORD i = 0; RegEnumKeyExA(hKey, i, accountName, &nameSize, NULL, NULL, NULL, NULL) == ERROR_SUCCESS; ++i) {
+            HKEY hAccountKey;
+            if (RegOpenKeyExA(hKey, accountName, 0, KEY_READ, &hAccountKey) == ERROR_SUCCESS) {
+                char path[MAX_PATH];
+                DWORD pathSize = sizeof(path);
+                if (RegQueryValueExA(hAccountKey, "UserFolder", NULL, NULL, (LPBYTE)path, &pathSize) == ERROR_SUCCESS) {
+                    if (fs::exists(path)) {
+                        paths.push_back(std::string(path));
+                    }
+                }
+                RegCloseKey(hAccountKey);
+            }
+            nameSize = sizeof(accountName);
+        }
+        RegCloseKey(hKey);
+    }
+    
+    if (paths.empty()) {
+        std::string personal = GetEnv("OneDrive");
+        if (!personal.empty() && fs::exists(personal)) paths.push_back(personal);
+        
+        std::string business = GetEnv("OneDriveCommercial");
+        if (!business.empty() && fs::exists(business)) paths.push_back(business);
+    }
+
+    return paths;
+}
+
+static void InitializeCrawlerRootPaths() {
+    KNOWNFOLDERID roots[] = { FOLDERID_Documents, FOLDERID_Desktop, FOLDERID_Downloads };
+    for (const auto& id : roots) {
+        std::string p = GetKnownFolderPath(id);
+        if (!p.empty()) crawlerRootPaths.push_back(p);
+    }
+
+    std::vector<std::string> oneDrivePaths = GetOneDrivePaths();
+    for (const auto& path : oneDrivePaths) {
+        if (std::find(crawlerRootPaths.begin(), crawlerRootPaths.end(), path) == crawlerRootPaths.end()) {
+            crawlerRootPaths.push_back(path);
+        }
+    }
+
+    for (const auto& path : crawlerRootPaths) {
+        std::cout << path << std::endl;
+    }
+}
+
+static void ScanDirectory(const std::string& path, std::vector<std::string>& results, int depth) {
+    if (depth > maxSubFolderDepth) return;
 
     std::string searchPath = path + "\\*";
     WIN32_FIND_DATAA fd;
     HANDLE hFind = FindFirstFileA(searchPath.c_str(), &fd);
     if (hFind != INVALID_HANDLE_VALUE) {
         do {
-            if ((fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) &&  !(fd.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
-                if (strcmp(fd.cFileName, ".") != 0 && strcmp(fd.cFileName, "..") != 0) {
-                    if (strcmp(fd.cFileName, "node_modules") == 0 || 
-                        strcmp(fd.cFileName, ".git") == 0 || 
-                        strcmp(fd.cFileName, "bin") == 0 || 
-                        strcmp(fd.cFileName, "obj") == 0) continue;
-                    std::string fullPath = path + "\\" + fd.cFileName;
-                    results.push_back(fullPath);
-                    ScanDirectory(fullPath, results, depth + 1);
-                }
+            if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) || (fd.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
+               continue;
+            }
+            if ((fd.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN) ||
+                (fd.dwFileAttributes & FILE_ATTRIBUTE_SYSTEM) ||
+                (fd.dwFileAttributes & FILE_ATTRIBUTE_OFFLINE)) {
+                continue;
+            }
+
+            if (strcmp(fd.cFileName, ".") != 0 && strcmp(fd.cFileName, "..") != 0) {
+                if (strcmp(fd.cFileName, "node_modules") == 0 ||
+                    strcmp(fd.cFileName, ".git") == 0 ||
+                    strcmp(fd.cFileName, "bin") == 0 ||
+                    strcmp(fd.cFileName, ".vs") == 0 ||
+                    strcmp(fd.cFileName, "obj") == 0) continue;
+                std::string fullPath = path + "\\" + fd.cFileName;
+                results.push_back(fullPath);
+                ScanDirectory(fullPath, results, depth + 1);
             }
         } while (FindNextFileA(hFind, &fd));
         FindClose(hFind);
@@ -153,16 +232,9 @@ static void BackgroundCrawl() {
 
     std::thread worker([]() {
         std::vector<std::string> tempFolders;
-        KNOWNFOLDERID roots[] = { FOLDERID_Documents, FOLDERID_Desktop, FOLDERID_Downloads };
-        for (int i = 0; i < 3; i++) {
-            PWSTR widePath = NULL;
-            if (SUCCEEDED(SHGetKnownFolderPath(roots[i], 0, NULL, &widePath))) {
-                char rootPath[MAX_PATH];
-                size_t convertedChars = 0;
-                wcstombs_s(&convertedChars, rootPath, MAX_PATH, widePath, _TRUNCATE);
-                ScanDirectory(rootPath, tempFolders, 0);
-                CoTaskMemFree(widePath);
-            }
+
+        for (const auto& crawlerRootPath : crawlerRootPaths) {
+            ScanDirectory(crawlerRootPath, tempFolders, 0);
         }
         {
             std::lock_guard<std::mutex> lock(crawlMutex);
@@ -236,6 +308,7 @@ void InitializePaths() {
     InitializeVSCodePath();
 
     LoadHistory();
+    InitializeCrawlerRootPaths();
     BackgroundCrawl();
     RefreshMatches("");
 }
