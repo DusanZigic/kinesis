@@ -1,6 +1,6 @@
 #include <windows.h>
 
-1 ICON "icon/icon.ico"
+1 ICON "icon/kinesis.ico"
 
 // Version Information
 1 VERSIONINFO
