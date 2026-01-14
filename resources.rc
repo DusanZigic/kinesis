@@ -1,6 +1,7 @@
 #include <windows.h>
 
 1 ICON "icon/kinesis.ico"
+101 RCDATA "backgrounds/background_vscode.png"
 
 // Version Information
 1 VERSIONINFO

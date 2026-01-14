@@ -17,6 +17,7 @@
 #include <thread>
 #include <atomic>
 #include <mutex>
+#include <gdiplus.h>
 #include <filesystem>
 namespace fs = std::filesystem;
 

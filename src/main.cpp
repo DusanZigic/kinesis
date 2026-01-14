@@ -70,13 +70,20 @@ int main() {
     }
 
     SetProcessDPIAware();
-    InitializePaths();
-
+    
+    Gdiplus::GdiplusStartupInput gdiplusStartupInput;
+    ULONG_PTR gdiplusToken;
+    Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
+    
+    InitializeVSCodeLauncher();
+    
     MSG msg;
     while (GetMessage(&msg, NULL, 0, 0)) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
+
+    Gdiplus::GdiplusShutdown(gdiplusToken);
 
     UnhookWindowsHookEx(hhkLowLevelKybd);
 

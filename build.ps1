@@ -18,7 +18,8 @@ $LDLibs = @(
     "-lole32",
     "-lshlwapi",
     "-luuid",
-    "-pthread"
+    "-pthread",
+    "-lgdiplus"
 )
 
 if ($Release) {
@@ -45,6 +46,8 @@ else {
     $Target = "ks.exe"
     Write-Host "Building DEBUG Version..." -ForegroundColor Cyan
 
+    & windres $ResourceSrc -O coff -o $ResourceObj
+
     $CXXFlags = @(
         "-std=c++17",
         "-g",
@@ -52,7 +55,7 @@ else {
         "-Wextra"
     )
 
-    & $Compiler $Source -o $Target $IncludePath $CXXFlags $LDLibs
+    & $Compiler $Source $ResourceObj -o $Target $IncludePath $CXXFlags $LDLibs
 }
 
 if ($LASTEXITCODE -eq 0) {
