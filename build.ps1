@@ -1,5 +1,5 @@
 param (
-    [switch]$Release
+    [switch]$release
 )
 
 $Compiler    = "g++"
@@ -24,7 +24,7 @@ $LDLibs = @(
 
 if ($Release) {
     $TargetDir = "bin"
-    $Target    = "$TargetDir/ks.exe"
+    $Target    = "$TargetDir/kinesis.exe"
     if (!(Test-Path $TargetDir)) { New-Item -ItemType Directory -Path $TargetDir }
 
     Write-Host "Building RELEASE Version..." -ForegroundColor Magenta
@@ -43,7 +43,7 @@ if ($Release) {
     & $Compiler $Source $ResourceObj -o $Target $IncludePath $CXXFlags $LDLibs
 } 
 else {
-    $Target = "ks.exe"
+    $Target = "kinesis.exe"
     Write-Host "Building DEBUG Version..." -ForegroundColor Cyan
 
     & windres $ResourceSrc -O coff -o $ResourceObj
