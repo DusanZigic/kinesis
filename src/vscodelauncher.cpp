@@ -334,13 +334,49 @@ static void RefreshMatches(std::string input) {
 
 void InitializeVSCodeLauncher() {
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
-
+    
     InitializeVSCodePath();
-
     LoadHistory();
     InitializeCrawlerRootPaths();
     BackgroundCrawl();
     RefreshMatches("");
+
+    if (vsCodeoBGImage == nullptr) {
+         vsCodeoBGImage = LoadImageFromResource(101);
+    }
+
+    if (hLauncherBgBrush == NULL) {
+        hLauncherBgBrush = CreateSolidBrush(RGB(30, 30, 30));
+    }
+    if (hEditBgBrush == NULL) {
+        hEditBgBrush = CreateSolidBrush(RGB(30, 30, 30));
+    }
+    if (hListBoxBgBrush == NULL) {
+        hListBoxBgBrush = CreateSolidBrush(RGB(45, 45, 45));
+    }
+}
+
+void ReleaseLauncherResources() {
+    if (vsCodeoBGImage) {
+        delete vsCodeoBGImage;
+        vsCodeoBGImage = nullptr;
+    }
+    if (hGlobalFont) {
+        DeleteObject(hGlobalFont);
+        hGlobalFont = NULL;
+    }
+    if (hSmallFont) {
+        DeleteObject(hSmallFont);
+        hSmallFont = NULL;
+    }
+    if (hLauncherBgBrush) {
+        DeleteObject(hLauncherBgBrush);
+        hLauncherBgBrush = nullptr;
+    }
+    if (hEditBgBrush) {
+        DeleteObject(hEditBgBrush);
+        hEditBgBrush = nullptr;
+    }
 }
 
 static void ApplyScaledFonts(int winHeight) {
@@ -665,21 +701,8 @@ static LRESULT CALLBACK LauncherWindProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
             RemoveWindowSubclass(hEdit, EditSubclassProc, 0);
             RemoveWindowSubclass(hListBox, ListBoxSubclassProc, 0);
             
-            if (hGlobalFont) {
-                DeleteObject(hGlobalFont);
-                hGlobalFont = NULL;
-            }
-            if (hSmallFont) {
-                DeleteObject(hSmallFont);
-                hSmallFont = NULL;
-            }
             SetWindowRgn(hwnd, NULL, FALSE);
             hLauncherWindow = NULL;
-
-            if (vsCodeoBGImage) {
-                delete vsCodeoBGImage;
-                vsCodeoBGImage = nullptr;
-            }
 
             return 0;
         }
@@ -689,10 +712,6 @@ static LRESULT CALLBACK LauncherWindProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
 
 static void RegisterLauncherClassOnce() {
     if (launcherClassRegistered) return;
-
-    hLauncherBgBrush = CreateSolidBrush(RGB(30, 30, 30));
-    hEditBgBrush = CreateSolidBrush(RGB(30, 30, 30));
-    hListBoxBgBrush = CreateSolidBrush(RGB(45, 45, 45));
 
     WNDCLASSA wndClass {};
     wndClass.lpfnWndProc = LauncherWindProc;
@@ -710,8 +729,6 @@ void ShowLauncher() {
         SetForegroundWindow(hLauncherWindow);
         return;
     }
-
-    if (vsCodeoBGImage == nullptr) vsCodeoBGImage = LoadImageFromResource(101);
 
     RegisterLauncherClassOnce();
 

@@ -83,6 +83,8 @@ int main() {
         DispatchMessage(&msg);
     }
 
+    ReleaseLauncherResources();
+
     Gdiplus::GdiplusShutdown(gdiplusToken);
 
     UnhookWindowsHookEx(hhkLowLevelKybd);

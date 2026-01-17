@@ -3,3 +3,4 @@
 
 void InitializeVSCodeLauncher();
 void ShowLauncher();
+void ReleaseLauncherResources();
