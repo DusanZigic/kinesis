@@ -16,6 +16,8 @@ static std::string VSCodeExe = "";
 static std::string VSCodeCli = "";
 static bool isVSCodeFound = false;
 
+static std::string historyFilePath = "";
+
 static Gdiplus::Image* vsCodeoBGImage = nullptr;
 
 static const size_t maxPathsN = 5;
@@ -105,10 +107,8 @@ static Gdiplus::Image* LoadImageFromResource(int resourceID) {
 }
 
 static void LoadHistory() {
-    char exeFilePath[MAX_PATH];
-    GetModuleFileNameA(NULL, exeFilePath, MAX_PATH);
-    std::string path(exeFilePath);
-    std::string historyFilePath = path.substr(0, path.find_last_of("\\/")) + "\\history.txt";
+    if (historyFilePath.empty()) return;
+
     std::ifstream historyFile(historyFilePath);
     if (historyFile.is_open()) {
         history.clear();
@@ -123,10 +123,7 @@ static void LoadHistory() {
 }
 
 void SaveHistory() {
-    char exeFilePath[MAX_PATH];
-    GetModuleFileNameA(NULL, exeFilePath, MAX_PATH);
-    std::string path(exeFilePath);
-    std::string historyFilePath = path.substr(0, path.find_last_of("\\/")) + "\\history.txt";
+    if (historyFilePath.empty()) return;
 
     std::ofstream file(historyFilePath, std::ios::trunc);
     if (file.is_open()) {
@@ -214,6 +211,27 @@ static void InitializeCrawlerRootPaths() {
         if (std::find(crawlerRootPaths.begin(), crawlerRootPaths.end(), path) == crawlerRootPaths.end()) {
             crawlerRootPaths.push_back(path);
         }
+    }
+}
+
+static void SetUpStoragePath() {
+    std::string baseAppPath = GetKnownFolderPath(FOLDERID_LocalAppData);
+
+    if (!baseAppPath.empty()) {
+        std::string kinesisPath = baseAppPath + "\\Kinesis";
+        std::string historyFolderPath = kinesisPath + "\\History";
+
+        if (!CreateDirectoryA(kinesisPath.c_str(), NULL) && GetLastError() != ERROR_ALREADY_EXISTS) {
+            historyFilePath = "vscodelauncher_history.txt";
+            return;
+        }
+        if (!CreateDirectoryA(historyFolderPath.c_str(), NULL) && GetLastError() != ERROR_ALREADY_EXISTS) {
+            historyFilePath = "vscodelauncher_history.txt";
+            return;
+        }
+        historyFilePath = historyFolderPath + "\\vscodelauncher_history.txt";
+    } else {
+        historyFilePath = "vscodelauncher_history.txt";
     }
 }
 
@@ -338,6 +356,7 @@ void InitializeVSCodeLauncher() {
     InitializeVSCodePath();
     LoadHistory();
     InitializeCrawlerRootPaths();
+    SetUpStoragePath();
     BackgroundCrawl();
     RefreshMatches("");
 
