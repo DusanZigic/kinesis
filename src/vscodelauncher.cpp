@@ -271,7 +271,13 @@ static void BackgroundCrawl() {
 
 }
 
-static void RefreshMatches(std::string input) {    
+static void RefreshMatches(std::string input) {
+    if (!isVSCodeFound) {
+        SendMessage(hListBox, LB_RESETCONTENT, 0, 0);
+        SetWindowTextA(hPathLabel, "ERROR: VS Code executable not found! Check your installation.");
+        return;    
+    }
+    
     currentMatches.clear();
     SendMessage(hListBox, LB_RESETCONTENT, 0, 0);
 
@@ -649,6 +655,12 @@ static LRESULT CALLBACK LauncherWindProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
             }
             return 0;
         }
+        case WM_KEYDOWN: {
+            if (wParam == VK_ESCAPE) {
+                DestroyWindow(hwnd);
+            }
+            return 0;
+        }
         case WM_DESTROY: {
             RemoveWindowSubclass(hEdit, EditSubclassProc, 0);
             RemoveWindowSubclass(hListBox, ListBoxSubclassProc, 0);
@@ -739,6 +751,12 @@ void ShowLauncher() {
          NULL
     );
     currentY += editH + (margin / 2);
+    
+    if (!isVSCodeFound) {
+        EnableWindow(hEdit, FALSE);
+        SetWindowTextA(hEdit, "");
+    }
+
 
     int pathH = winH * 0.10;
     int listH = winH - currentY - pathH - (margin * 2);
@@ -789,5 +807,9 @@ void ShowLauncher() {
     ShowWindow(hLauncherWindow, SW_SHOW);
     SetForegroundWindow(hLauncherWindow);
     SetActiveWindow(hLauncherWindow);
-    SetFocus(hEdit);
+    if (!isVSCodeFound) {
+        SetFocus(hLauncherWindow);
+    } else {
+        SetFocus(hEdit);
+    }
 }
