@@ -1,7 +1,7 @@
 #include "common.hpp"
 #include "tabswitcher.hpp"
 #include "appcycleswitcher.hpp"
-#include "vscodelauncher.hpp"
+#include "launchers.hpp"
 #include "quitsequence.hpp"
 
 LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
@@ -16,7 +16,11 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
         if (isDown) {
             if (ctrlHeld && altHeld) {
                 if (pKeyBoard->vkCode == 'V') {
-                    ShowLauncher();
+                    ShowLauncher(LauncherMode::VSCode);
+                    return 1;
+                }
+                if (pKeyBoard->vkCode == 'L') {
+                    ShowLauncher(LauncherMode::WSL);
                     return 1;
                 }
                 if (pKeyBoard->vkCode == 'Q') {
@@ -75,7 +79,7 @@ int main() {
     ULONG_PTR gdiplusToken;
     Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
     
-    InitializeVSCodeLauncher();
+    InitializeLauncher();
     
     MSG msg;
     while (GetMessage(&msg, NULL, 0, 0)) {

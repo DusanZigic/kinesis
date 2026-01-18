@@ -2,6 +2,7 @@
 
 1 ICON "icon/kinesis.ico"
 101 RCDATA "backgrounds/background_vscode.png"
+102 RCDATA "backgrounds/background_wsl.png"
 
 // Version Information
 1 VERSIONINFO
