@@ -37,7 +37,8 @@ if ($Release) {
         "-mwindows",
         "-static",
         "-s",
-        "-Wall"
+        "-Wall",
+        "-DNDEBUG"
     )
     
     & $Compiler $Source $ResourceObj -o $Target $IncludePath $CXXFlags $LDLibs
@@ -52,7 +53,8 @@ else {
         "-std=c++17",
         "-g",
         "-Wall",
-        "-Wextra"
+        "-Wextra",
+        "-D_DEBUG"
     )
 
     & $Compiler $Source $ResourceObj -o $Target $IncludePath $CXXFlags $LDLibs

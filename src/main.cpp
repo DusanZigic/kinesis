@@ -1,8 +1,26 @@
 #include "common.hpp"
+#include "trayicon.h"
 #include "tabswitcher.hpp"
 #include "appcycleswitcher.hpp"
 #include "launchers.hpp"
 #include "quitsequence.hpp"
+
+LRESULT CALLBACK GhostWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    switch (msg) {
+        case WM_TRAYICON:
+            if (lp == WM_RBUTTONUP) {
+                ShowTrayMenu(hwnd);
+            }
+            break;
+        case WM_DESTROY:
+#ifdef NDEBUG
+            RemoveTrayIcon(hwnd);
+#endif
+            PostQuitMessage(0);
+            return 0;
+    }
+    return DefWindowProc(hwnd, msg, wp, lp);
+}
 
 LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
     if (nCode == HC_ACTION) {
@@ -66,6 +84,27 @@ int main() {
     icex.dwSize = sizeof(INITCOMMONCONTROLSEX);
     icex.dwICC  = ICC_STANDARD_CLASSES;
     InitCommonControlsEx(&icex);
+
+    WNDCLASSA wc {};
+    wc.lpfnWndProc = GhostWndProc;
+    wc.hInstance = GetModuleHandle(NULL);
+    wc.lpszClassName = "KinesisGhostClass";
+    RegisterClassA(&wc);
+
+    HWND hGhostWnd = CreateWindowA(wc.lpszClassName, "KinesisGhost", 0, 0, 0, 0, 0, NULL, NULL, GetModuleHandle(NULL), NULL);
+
+#ifdef NDEBUG
+    HINSTANCE hInst = GetModuleHandle(NULL);
+    HICON hIcon = LoadIcon(hInst, MAKEINTRESOURCE(1));
+    if (hIcon) {
+        InitTrayIcon(hGhostWnd, hIcon);
+    } else {
+        HICON hDefault = LoadIcon(NULL, IDI_APPLICATION);
+        InitTrayIcon(hGhostWnd, hDefault);
+    }
+#else
+    (void)hGhostWnd;
+#endif
 
     HHOOK hhkLowLevelKybd = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, GetModuleHandle(NULL), 0);
     if (hhkLowLevelKybd == NULL) {
