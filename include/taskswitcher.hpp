@@ -1,6 +1,12 @@
 #pragma once
 #define WIN32_LEAN_AND_MEAN
 
+enum class SwitcherMode {
+    None,
+    SameApp,
+    AllApps
+};
+
 struct WindowData {
     std::string targetProcessName;
     std::vector<HWND> windows;
@@ -18,8 +24,10 @@ struct SwitcherLayout {
     int fontSize;
     int cols;
     int rows;
+
+    int maxCols;
 };
 
 bool IsSwitcherActive();
-void ResetAltTildeSession(DWORD vkCode);
-void AppCycleSwitcher(DWORD vkCode);
+void ResetSwitcherSession(DWORD vkCode);
+void AppCycleSwitcher(DWORD vkCode, SwitcherMode mode = SwitcherMode::None);

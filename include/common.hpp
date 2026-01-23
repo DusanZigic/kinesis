@@ -7,6 +7,7 @@
 #include <commoncontrols.h>
 #include <iostream>
 #include <vector>
+#include <set>
 #include <algorithm>
 #include <string>
 #include <cmath>

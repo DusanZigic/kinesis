@@ -1,48 +1,57 @@
 #include "common.hpp"
-#include "appcycleswitcher.hpp"
+#include "taskswitcher.hpp"
+
+static SwitcherMode currentMode = SwitcherMode::None;
 
 static bool classRegistered = false;
 static HWND hSwitcherWindow = NULL;
 static HFONT hSwitcherFont = NULL;
 static HBRUSH hSwitcherBackBrush = NULL;
 
+static std::set<std::string> seenProcessNames;
+
 static std::vector<HTHUMBNAIL> sessionThumbs;
 
 static SwitcherLayout cachedLayout;
 
-static bool isAltTildeSession = false;
 static std::vector<HWND> sessionWindows;
 static size_t sessionIndex = 0;
 
-static const int MAX_COLS = 4;
 static const double MAX_SWITCHER_RELATIVE_WIDTH = 0.85;
 
 bool IsSwitcherActive() {
-    return isAltTildeSession;
+    return currentMode != SwitcherMode::None;
 }
 
-SwitcherLayout CalculateSwitcherLayout(size_t count) {
+SwitcherLayout CalculateSwitcherLayout(size_t count, SwitcherMode mode) {
     SwitcherLayout layout;
 
     double screenW = GetSystemMetrics(SM_CXSCREEN);
     double screenH = GetSystemMetrics(SM_CYSCREEN);
-    double  aspect = screenW/screenH;
-
+    
     layout.margin      = (int)(0.013*screenW);
     layout.spacing     = (int)(0.010*screenW);
     layout.titleHeight = (int)(0.046*screenH);
     layout.fontSize    = (int)(0.450*layout.titleHeight);
 
-    layout.cols = (count < MAX_COLS) ? (int)count : MAX_COLS;
-    layout.rows = (int)std::ceil((double)count / layout.cols);
-
-    double maxSwitcherWidth = screenW*MAX_SWITCHER_RELATIVE_WIDTH;
-
-    int usableWidth = (int)maxSwitcherWidth - 2*layout.margin - (layout.cols - 1)*layout.spacing;
-    
-    layout.thumbW = usableWidth / layout.cols;
-    layout.thumbH = (int)(layout.thumbW / aspect);
-
+    if (mode == SwitcherMode::AllApps) {
+        layout.maxCols = 7;
+        layout.cols = (count < (size_t)layout.maxCols) ? (int)count : layout.maxCols;
+        layout.rows = (int)std::ceil((double)count / layout.cols);
+        layout.thumbW = (int)(0.07 * screenW);
+        layout.thumbH = layout.thumbW;
+    }
+    else if (mode == SwitcherMode::SameApp) {
+        layout.maxCols = 4;
+        layout.cols = (count < (size_t)layout.maxCols) ? (int)count : layout.maxCols;
+        layout.rows = (int)std::ceil((double)count / layout.cols);
+        double maxSwitcherWidth = screenW*MAX_SWITCHER_RELATIVE_WIDTH;
+        int usableWidth = (int)maxSwitcherWidth - 2*layout.margin - (layout.cols - 1)*layout.spacing;
+        double  aspect = screenW/screenH;
+        layout.thumbW = usableWidth / layout.cols;
+        layout.thumbH = (int)(layout.thumbW / aspect);
+    }
+        
     layout.winW = layout.cols*layout.thumbW + (layout.cols - 1)*layout.spacing + 2*layout.margin;
     layout.winH = layout.rows*layout.thumbH + (layout.rows - 1)*layout.spacing + 2*layout.margin + layout.titleHeight;
 
@@ -84,6 +93,22 @@ RECT GetThumbRect(const SwitcherLayout& layout, size_t index, size_t count) {
     return r;
 }
 
+HICON GetHighResIcon(HWND hwnd) {
+    HICON hIcon = NULL;
+
+    SendMessageTimeoutA(hwnd, WM_GETICON, ICON_BIG, 0, SMTO_ABORTIFHUNG, 100, (PDWORD_PTR)&hIcon);
+
+    if (!hIcon) {
+        hIcon = (HICON)GetClassLongPtrA(hwnd, GCLP_HICON);
+    }
+
+    if (!hIcon) {
+        SendMessageTimeoutA(hwnd, WM_GETICON, ICON_SMALL, 0, SMTO_ABORTIFHUNG, 100, (PDWORD_PTR)&hIcon);
+    }
+
+    return hIcon;
+}
+
 static BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) {
     WindowData* wData = (WindowData*)lParam;
     DWORD windowPid;
@@ -106,6 +131,39 @@ static BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) {
     return TRUE;
 }
 
+static BOOL CALLBACK EnumAllWindowsProc(HWND hwnd, LPARAM lParam) {
+    WindowData* wData = (WindowData*)lParam;
+
+    if (!IsWindowVisible(hwnd)) return TRUE;
+
+    if (GetWindowTextLength(hwnd) == 0) return TRUE;
+
+    int cloaked = 0;
+    DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, &cloaked, sizeof(cloaked));
+    if (cloaked) return TRUE;
+
+    char className[256];
+    GetClassNameA(hwnd, className, sizeof(className));
+    if (strstr(className, "TrayWnd") || strstr(className, "Progman") || strstr(className, "ControlCenter")) {
+        return TRUE;
+    }
+
+    LONG exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
+    if ((exStyle & WS_EX_TOOLWINDOW) && !(exStyle & WS_EX_APPWINDOW)) return TRUE;
+    if (GetWindow(hwnd, GW_OWNER) != NULL && !(exStyle & WS_EX_APPWINDOW)) return TRUE;
+
+    DWORD pid;
+    GetWindowThreadProcessId(hwnd, &pid);
+    std::string processName = GetProcessName(pid);
+
+    if (seenProcessNames.find(processName) == seenProcessNames.end()) {
+        seenProcessNames.insert(processName);
+        wData->windows.push_back(hwnd);
+    }
+
+    return TRUE;
+}
+
 static LRESULT CALLBACK SwitcherWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
         case WM_PAINT: {
@@ -113,16 +171,30 @@ static LRESULT CALLBACK SwitcherWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPAR
             HDC hdc = BeginPaint(hwnd, &ps);
             FillRect(hdc, &ps.rcPaint, hSwitcherBackBrush);
 
-            if (isAltTildeSession && !sessionWindows.empty()) {
+            if (currentMode != SwitcherMode::None && !sessionWindows.empty()) {
                 HFONT oldFont = (HFONT)SelectObject(hdc, hSwitcherFont);
                 char title[256];
                 GetWindowTextA(sessionWindows[sessionIndex], title, sizeof(title));
                 SetTextColor(hdc, RGB(255, 255, 255));
                 SetBkMode(hdc, TRANSPARENT);
-                RECT titleRect = {cachedLayout.margin, 0, cachedLayout.winH - cachedLayout.margin, cachedLayout.titleHeight};
-                DrawTextA(hdc, title, -1, &titleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+                RECT titleRect = { 0, 0, cachedLayout.winW, cachedLayout.titleHeight };
+                DrawTextA(hdc, title, -1, &titleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
 
                 RECT highlightRect = GetThumbRect(cachedLayout, sessionIndex, sessionWindows.size());
+
+                if (currentMode == SwitcherMode::AllApps) {
+                    for (size_t i = 0; i < sessionWindows.size(); ++i) {
+                        RECT r = GetThumbRect(cachedLayout, i, sessionWindows.size());
+                        HICON hIcon = GetHighResIcon(sessionWindows[i]);
+                        if (hIcon) {
+                            int iconSize = (int)(cachedLayout.thumbH * 0.65);
+                            int x = r.left + (cachedLayout.thumbW - iconSize) / 2;
+                            int y = r.top + (cachedLayout.thumbH - iconSize) / 2;
+                            DrawIconEx(hdc, x, y, hIcon, iconSize, iconSize, 0, NULL, DI_NORMAL);
+                        }
+                    }
+                }
+
                 InflateRect(&highlightRect, 6, 6);
                 HPEN hPen = CreatePen(PS_SOLID, 3, RGB(211, 211, 211)); 
                 HGDIOBJ oldPen = SelectObject(hdc, hPen);
@@ -188,6 +260,12 @@ static void CreateSwitcherUI() {
 
 static void UpdateThumbnailGallery() {
     if (sessionWindows.empty()) return;
+
+    if (currentMode == SwitcherMode::AllApps) {
+        for (auto t : sessionThumbs) DwmUnregisterThumbnail(t);
+        sessionThumbs.clear();
+        return; 
+    }
 
     bool isInitialLoad = sessionThumbs.empty();
 
@@ -266,14 +344,17 @@ void HandleArrowNavigation(DWORD vkCode) {
     sessionIndex = (size_t)currentIndex;
 }
 
-void ResetAltTildeSession(DWORD vkCode) {
-    if (!isAltTildeSession) return;
+void ResetSwitcherSession(DWORD vkCode) {
+    if (currentMode == SwitcherMode::None) return;
 
     if (vkCode == VK_MENU || vkCode == VK_RETURN) {
+        for (auto t : sessionThumbs) DwmUnregisterThumbnail(t);
+        sessionThumbs.clear();
+
         if (sessionIndex < sessionWindows.size()) {
             HWND target = sessionWindows[sessionIndex];
 
-            if (hSwitcherWindow) ShowWindow(hSwitcherWindow, SW_HIDE);            
+            if (hSwitcherWindow) ShowWindow(hSwitcherWindow, SW_HIDE);
             if (IsIconic(target)) ShowWindow(target, SW_RESTORE);
 
             keybd_event(0xFC, 0, 0, 0);
@@ -283,47 +364,100 @@ void ResetAltTildeSession(DWORD vkCode) {
             SetForegroundWindow(target);
             SetActiveWindow(target);
         }
-        for (auto t : sessionThumbs) DwmUnregisterThumbnail(t);
-        sessionThumbs.clear();
 
         if (hSwitcherWindow) {
             DestroyWindow(hSwitcherWindow);
             hSwitcherWindow = NULL;
         }
-        isAltTildeSession = false;
+
+        currentMode = SwitcherMode::None;
         sessionIndex = 0;
+        sessionWindows.clear();
+        seenProcessNames.clear();
     }
 }
 
-void AppCycleSwitcher(DWORD vkCode) {
-    if (!isAltTildeSession) {
-        HWND activeWindow = GetForegroundWindow();
-        if (activeWindow) {
-            DWORD processId;
-            GetWindowThreadProcessId(activeWindow, &processId);
-            std::string windowProcessName = GetProcessName(processId);
-            WindowData wData;
-            wData.targetProcessName = windowProcessName;
-            EnumWindows(EnumWindowsProc, (LPARAM)&wData);
-            
-            if (wData.windows.size() > 1) {
-                sessionWindows = wData.windows;
-                sessionIndex = 0;
-                isAltTildeSession = true;
-                cachedLayout = CalculateSwitcherLayout(sessionWindows.size());
-                CreateSwitcherUI();
-                UpdateThumbnailGallery();
-                ShowWindow(hSwitcherWindow, SW_SHOW);
-                UpdateWindow(hSwitcherWindow);
-            }
+static void InitializeSwitcher(SwitcherMode mode, HWND anchorWindow, DWORD vkCode) {
+    if (!anchorWindow) return;
+
+    bool isSwap = (currentMode != SwitcherMode::None && currentMode != mode);
+    bool isFirstStart = (currentMode == SwitcherMode::None);
+
+    DWORD targetPid;
+    GetWindowThreadProcessId(anchorWindow, &targetPid);
+    if (targetPid == GetCurrentProcessId()) {
+        anchorWindow = GetNextWindow(anchorWindow, GW_HWNDNEXT);
+        if (!anchorWindow) return;
+        GetWindowThreadProcessId(anchorWindow, &targetPid);
+    }
+
+    WindowData wData;
+    seenProcessNames.clear(); 
+    if (mode == SwitcherMode::SameApp) {
+        wData.targetProcessName = GetProcessName(targetPid);
+        EnumWindows(EnumWindowsProc, (LPARAM)&wData);
+    } else {
+        EnumWindows(EnumAllWindowsProc, (LPARAM)&wData);
+    }
+
+    if (wData.windows.size() <= 1 && mode == SwitcherMode::SameApp) {
+        if (isSwap) {
+            return;
+        }
+        currentMode = SwitcherMode::None;
+        return;
+    }
+
+    if (isSwap) {
+        for (auto t : sessionThumbs) DwmUnregisterThumbnail(t);
+        sessionThumbs.clear();
+        if (hSwitcherWindow) {
+            DestroyWindow(hSwitcherWindow);
+            hSwitcherWindow = NULL;
         }
     }
+
+    sessionWindows = wData.windows;
+    currentMode = mode;
+
+    sessionIndex = 0;
+    for (size_t i = 0; i < sessionWindows.size(); ++i) {
+        if (sessionWindows[i] == anchorWindow) {
+            sessionIndex = (int)i;
+            break;
+        }
+    }
+
+    if (isFirstStart && (vkCode == VK_TAB || vkCode == VK_OEM_3)) {
+        sessionIndex = (sessionIndex + 1) % (int)sessionWindows.size();
+    }
+
+    cachedLayout = CalculateSwitcherLayout((int)sessionWindows.size(), currentMode);
+    CreateSwitcherUI();
+    UpdateThumbnailGallery();
     
-    if (isAltTildeSession && !sessionWindows.empty()) {
-        if (vkCode == VK_OEM_3 || vkCode == 0) {
+    ShowWindow(hSwitcherWindow, SW_SHOW);
+    InvalidateRect(hSwitcherWindow, NULL, TRUE);
+}
+
+void AppCycleSwitcher(DWORD vkCode, SwitcherMode requestedMode) {
+    if (currentMode != SwitcherMode::None && requestedMode != SwitcherMode::None && requestedMode != currentMode) {
+        HWND anchor = sessionWindows[sessionIndex];
+        InitializeSwitcher(requestedMode, anchor, vkCode);
+        return;
+    }
+
+    if (currentMode == SwitcherMode::None) {
+        InitializeSwitcher(requestedMode, GetForegroundWindow(), vkCode);
+        return;
+    }
+
+    if (currentMode != SwitcherMode::None && !sessionWindows.empty()) {
+        if ((currentMode == SwitcherMode::AllApps && vkCode == VK_TAB) ||
+            (currentMode == SwitcherMode::SameApp && vkCode == VK_OEM_3)) {
             sessionIndex = (sessionIndex + 1) % sessionWindows.size();
         }
-        else if (vkCode == VK_LEFT || vkCode == VK_RIGHT ||  vkCode == VK_UP   || vkCode == VK_DOWN) {
+        else if (vkCode == VK_LEFT || vkCode == VK_RIGHT || vkCode == VK_UP || vkCode == VK_DOWN) {
             HandleArrowNavigation(vkCode);
         }
         UpdateThumbnailGallery();

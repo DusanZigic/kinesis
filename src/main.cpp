@@ -1,7 +1,7 @@
 #include "common.hpp"
 #include "trayicon.h"
 #include "tabswitcher.hpp"
-#include "appcycleswitcher.hpp"
+#include "taskswitcher.hpp"
 #include "launchers.hpp"
 #include "quitsequence.hpp"
 
@@ -48,18 +48,29 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
             }
             if (IsSwitcherActive()) {
                 if (pKeyBoard->vkCode == VK_LEFT || pKeyBoard->vkCode == VK_RIGHT || 
-                    pKeyBoard->vkCode == VK_UP   || pKeyBoard->vkCode == VK_DOWN || 
-                    pKeyBoard->vkCode == VK_OEM_3) {
-                    AppCycleSwitcher(pKeyBoard->vkCode);
+                    pKeyBoard->vkCode == VK_UP   || pKeyBoard->vkCode == VK_DOWN) {
+                    AppCycleSwitcher(pKeyBoard->vkCode, SwitcherMode::None);
+                    return 1;
+                }
+                if (pKeyBoard->vkCode == VK_TAB) {
+                    AppCycleSwitcher(VK_TAB, SwitcherMode::AllApps);
+                    return 1;
+                }
+                if (pKeyBoard->vkCode == VK_OEM_3) {
+                    AppCycleSwitcher(VK_OEM_3, SwitcherMode::SameApp);
                     return 1;
                 }
                 if (pKeyBoard->vkCode == VK_RETURN) {
-                    ResetAltTildeSession(VK_RETURN);
+                    ResetSwitcherSession(VK_RETURN);
                     return 1;
                 }
             }
-            if (wParam == WM_SYSKEYDOWN && pKeyBoard->vkCode == VK_OEM_3 && !ctrlHeld) {
-                AppCycleSwitcher(0); 
+            if (pKeyBoard->vkCode == VK_TAB && altHeld) {
+                AppCycleSwitcher(VK_TAB, SwitcherMode::AllApps);
+                return 1;
+            }
+            if (pKeyBoard->vkCode == VK_OEM_3 && altHeld) {
+                AppCycleSwitcher(VK_OEM_3, SwitcherMode::SameApp);
                 return 1;
             }
             if (wParam == WM_SYSKEYDOWN && pKeyBoard->vkCode >= '1' && pKeyBoard->vkCode <= '9') {
@@ -70,7 +81,7 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
         if (isUp) {
             if (pKeyBoard->vkCode == VK_MENU || pKeyBoard->vkCode == VK_LMENU || pKeyBoard->vkCode == VK_RMENU) {
                 if (IsSwitcherActive()) {
-                    ResetAltTildeSession(VK_MENU);
+                    ResetSwitcherSession(VK_MENU);
                     return 0;
                 }
             }
