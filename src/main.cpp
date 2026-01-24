@@ -24,11 +24,14 @@ LRESULT CALLBACK GhostWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
     if (nCode == HC_ACTION) {
         KBDLLHOOKSTRUCT *pKeyBoard = (KBDLLHOOKSTRUCT*)lParam;
+
         bool isDown = (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN);
         bool isUp   = (wParam == WM_KEYUP   || wParam == WM_SYSKEYUP);
         
-        bool ctrlHeld = (GetAsyncKeyState(VK_CONTROL) & 0x8000);
-        bool altHeld  = (GetAsyncKeyState(VK_MENU) & 0x8000);
+        bool ctrlHeld  = (GetAsyncKeyState(VK_CONTROL) & 0x8000);
+        bool altHeld   = (GetAsyncKeyState(VK_MENU) & 0x8000);
+
+        static unsigned int activeSwitcherMod = 0;
 
         if (isDown) {
             if (ctrlHeld && altHeld) {
@@ -51,30 +54,34 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
                     AppCycleSwitcher(pKeyBoard->vkCode, SwitcherMode::None);
                     return 1;
                 }
-                if (pKeyBoard->vkCode == VK_TAB) {
-                    AppCycleSwitcher(VK_TAB, SwitcherMode::AllApps);
+                if (pKeyBoard->vkCode == Config::allAppsSwitcherKey) {
+                    AppCycleSwitcher(Config::allAppsSwitcherKey, SwitcherMode::AllApps);
                     return 1;
                 }
-                if (pKeyBoard->vkCode == VK_OEM_3) {
-                    AppCycleSwitcher(VK_OEM_3, SwitcherMode::SameApp);
+                if (pKeyBoard->vkCode == Config::sameAppsSwitcherKey) {
+                    AppCycleSwitcher(Config::sameAppsSwitcherKey, SwitcherMode::SameApp);
                     return 1;
                 }
-                if (pKeyBoard->vkCode == VK_RETURN) {
-                    ResetSwitcherSession(VK_RETURN);
-                    return 1;
-                }
-                if (pKeyBoard->vkCode == VK_ESCAPE) {
-                    ResetSwitcherSession(VK_ESCAPE);
+                if (pKeyBoard->vkCode == VK_RETURN || pKeyBoard->vkCode == VK_ESCAPE) {
+                    ResetSwitcherSession(pKeyBoard->vkCode);
+                    activeSwitcherMod = 0;
                     return 1;
                 }
             }
-            if (pKeyBoard->vkCode == VK_TAB && altHeld) {
-                AppCycleSwitcher(VK_TAB, SwitcherMode::AllApps);
-                return 1;
-            }
-            if (pKeyBoard->vkCode == VK_OEM_3 && altHeld) {
-                AppCycleSwitcher(VK_OEM_3, SwitcherMode::SameApp);
-                return 1;
+            if (!IsSwitcherActive() && Config::enableTaskSwitcher) {
+                bool allAppsSwitcherModHeld = (GetAsyncKeyState(Config::allAppsSwitcherMod) & 0x8000);
+                if (allAppsSwitcherModHeld && pKeyBoard->vkCode == Config::allAppsSwitcherKey) {
+                    activeSwitcherMod = Config::allAppsSwitcherMod;
+                    AppCycleSwitcher(Config::allAppsSwitcherMod, SwitcherMode::AllApps);
+                    return 1;
+                }
+
+                bool sameAppsSwitcherModHeld = (GetAsyncKeyState(Config::sameAppsSwitcherMod) & 0x8000);
+                if (sameAppsSwitcherModHeld && pKeyBoard->vkCode == Config::sameAppsSwitcherKey) {
+                    activeSwitcherMod = Config::sameAppsSwitcherMod;
+                    AppCycleSwitcher(Config::sameAppsSwitcherMod, SwitcherMode::SameApp);
+                    return 1;
+                }
             }
             if (Config::enableTabSwitcher) {
                 if (wParam == WM_SYSKEYDOWN && pKeyBoard->vkCode >= '1' && pKeyBoard->vkCode <= '9') {
@@ -83,12 +90,17 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
             }
 
         }
-        if (isUp) {
-            if (pKeyBoard->vkCode == VK_MENU || pKeyBoard->vkCode == VK_LMENU || pKeyBoard->vkCode == VK_RMENU) {
-                if (IsSwitcherActive()) {
-                    ResetSwitcherSession(VK_MENU);
-                    return 0;
-                }
+        if (isUp && IsSwitcherActive()) {
+            unsigned int releasedKey = pKeyBoard->vkCode;
+
+            if (releasedKey == VK_LMENU    || releasedKey == VK_RMENU)    releasedKey = VK_MENU;
+            if (releasedKey == VK_LCONTROL || releasedKey == VK_RCONTROL) releasedKey = VK_CONTROL;
+            if (releasedKey == VK_LSHIFT   || releasedKey == VK_RSHIFT)   releasedKey = VK_SHIFT;
+
+            if (releasedKey == activeSwitcherMod) {
+                ResetSwitcherSession(activeSwitcherMod);
+                activeSwitcherMod = 0;
+                return 0;
             }
         }
     }

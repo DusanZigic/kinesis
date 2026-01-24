@@ -1,4 +1,5 @@
 #include "common.hpp"
+#include "config.hpp"
 #include "taskswitcher.hpp"
 
 static SwitcherMode currentMode = SwitcherMode::None;
@@ -479,10 +480,10 @@ void AppCycleSwitcher(DWORD vkCode, SwitcherMode requestedMode) {
     }
 
     if (currentMode != SwitcherMode::None && !sessionWindows.empty()) {
-        bool isTabInAll = (currentMode == SwitcherMode::AllApps && vkCode == VK_TAB);
-        bool isTildeInSame = (currentMode == SwitcherMode::SameApp && vkCode == VK_OEM_3);
+        bool isAllAppMode  = (currentMode == SwitcherMode::AllApps && vkCode == Config::allAppsSwitcherKey);
+        bool isSameAppMode = (currentMode == SwitcherMode::SameApp && vkCode == Config::sameAppsSwitcherKey);
 
-        if (isTabInAll || isTildeInSame) {
+        if (isAllAppMode || isSameAppMode) {
             sessionIndex = (sessionIndex + 1) % sessionWindows.size();
         }
         else if (vkCode == VK_LEFT || vkCode == VK_RIGHT || vkCode == VK_UP || vkCode == VK_DOWN) {

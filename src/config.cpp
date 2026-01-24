@@ -15,8 +15,15 @@ namespace Config {
 
     bool enableVSCodeLauncher = true;
     unsigned int VSCodeLauncherKey = 'V';
+
     bool enableWSLTerminalLauncher = true;
     unsigned int WSLTerminalLauncherKey = 'L';
+
+    bool enableTaskSwitcher = true;
+    unsigned int allAppsSwitcherMod = VK_MENU;
+    unsigned int allAppsSwitcherKey = VK_TAB;
+    unsigned int sameAppsSwitcherMod = VK_MENU;
+    unsigned int sameAppsSwitcherKey = VK_OEM_3;
 
     std::string GetConfigPath() {
         std::string baseAppPath = GetKnownFolderPath(FOLDERID_LocalAppData);
@@ -52,7 +59,18 @@ namespace Config {
         
         file << "  // Enable or disable WSL terminal launcher and shortcuts (Mandatory: Ctrl + Alt + Key)\n"
              << "  \"enableWSLTerminalLauncher\": true,\n"
-             << "  \"WSLTerminalLauncherKey\": \"L\"\n";
+             << "  \"WSLTerminalLauncherKey\": \"L\",\n\n";
+            
+        file << "  // Enable or disable Task Switcher\n"
+             << "  \"enableTaskSwitcher\": true,\n\n";
+        
+        file << "  // All apps task switcher\n"
+             << "  \"allAppsSwitcherMod\": \"ALT\",\n"
+             << "  \"allAppsSwitcherKey\": \"TAB\",\n\n";
+
+        file << "  // Same app / cluster task switcher\n"
+             << "  \"sameAppsSwitcherMod\": \"ALT\",\n"
+             << "  \"sameAppsSwitcherKey\": \"TILDE\"\n";
 
         file << "}";
         
@@ -68,15 +86,32 @@ namespace Config {
         return s;
     }
 
+    unsigned int StringToVK(const std::string& s) {
+        std::string upper = ToUpper(s);
+        if (upper == "ALT")   return VK_MENU;
+        if (upper == "CTRL")  return VK_CONTROL;
+        if (upper == "SHIFT") return VK_SHIFT;
+        if (upper == "TAB")   return VK_TAB;
+        if (upper == "SPACE") return VK_SPACE;
+        if (upper == "TILDE") return 192;
+        
+        return VkKeyScanA(s[0]) & 0xFF;
+}
+
     void AssignSetting(const std::string& key, const std::string& value) {
         std::string cleanValue = CleanValue(value);
         
         if      (key == "enableTabSwitcher")         enableTabSwitcher         = (cleanValue == "true");
         else if (key == "enableVSCodeLauncher")      enableVSCodeLauncher      = (cleanValue == "true");
         else if (key == "enableWSLTerminalLauncher") enableWSLTerminalLauncher = (cleanValue == "true");
+        else if (key == "enableTaskSwitcher")        enableTaskSwitcher        = (cleanValue == "true");
         
-        else if (key == "VSCodeLauncherKey")      VSCodeLauncherKey      = VkKeyScanA(cleanValue[0]) & 0xFF;
-        else if (key == "WSLTerminalLauncherKey") WSLTerminalLauncherKey = VkKeyScanA(cleanValue[0]) & 0xFF;
+        else if (key == "VSCodeLauncherKey")      VSCodeLauncherKey      = StringToVK(cleanValue);
+        else if (key == "WSLTerminalLauncherKey") WSLTerminalLauncherKey = StringToVK(cleanValue);
+        else if (key == "allAppsSwitcherMod")     allAppsSwitcherMod     = StringToVK(cleanValue);
+        else if (key == "allAppsSwitcherKey")     allAppsSwitcherKey     = StringToVK(cleanValue);
+        else if (key == "sameAppsSwitcherMod")    sameAppsSwitcherMod    = StringToVK(cleanValue);
+        else if (key == "sameAppsSwitcherKey")    sameAppsSwitcherKey    = StringToVK(cleanValue);
     }
 
     void ParseTabbedApps(const std::string& val) {
