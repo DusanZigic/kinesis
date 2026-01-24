@@ -1,6 +1,6 @@
 #include "common.hpp"
 #include "onstartup.hpp"
-#include "trayicon.h"
+#include "trayicon.hpp"
 
 #define ID_TRAY_APP_ICON 1001
 

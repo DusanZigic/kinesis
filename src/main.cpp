@@ -1,5 +1,5 @@
 #include "common.hpp"
-#include "trayicon.h"
+#include "trayicon.hpp"
 #include "tabswitcher.hpp"
 #include "taskswitcher.hpp"
 #include "launchers.hpp"
