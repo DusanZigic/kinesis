@@ -4,26 +4,44 @@
 namespace fs = std::filesystem;
 
 namespace Config {
-    bool enableTabSwitcher = true;
-    std::set<std::string> tabbedApps = {
-        "chrome.exe", 
-        "msedge.exe", 
-        "firefox.exe", 
-        "explorer.exe",
-        "WindowsTerminal.exe"
-    };
+    bool enableTabSwitcher;
+    std::set<std::string> tabbedApps;
 
-    bool enableVSCodeLauncher = true;
-    unsigned int VSCodeLauncherKey = 'V';
+    bool enableVSCodeLauncher;
+    unsigned int VSCodeLauncherKey;
 
-    bool enableWSLTerminalLauncher = true;
-    unsigned int WSLTerminalLauncherKey = 'L';
+    bool enableWSLTerminalLauncher;
+    unsigned int WSLTerminalLauncherKey;
 
-    bool enableTaskSwitcher = true;
-    unsigned int allAppsSwitcherMod = VK_MENU;
-    unsigned int allAppsSwitcherKey = VK_TAB;
-    unsigned int sameAppsSwitcherMod = VK_MENU;
-    unsigned int sameAppsSwitcherKey = VK_OEM_3;
+    bool enableTaskSwitcher;
+    unsigned int allAppsSwitcherMod;
+    unsigned int allAppsSwitcherKey;
+    unsigned int sameAppsSwitcherMod;
+    unsigned int sameAppsSwitcherKey;
+
+    time_t lastLoadTime = 0;
+
+    void ApplyHardcodedDefaults() {
+        enableTabSwitcher = true;
+        tabbedApps.clear();
+        tabbedApps.insert("chrome.exe");
+        tabbedApps.insert("msedge.exe");
+        tabbedApps.insert("firefox.exe");
+        tabbedApps.insert("explorer.exe");
+        tabbedApps.insert("WindowsTerminal.exe");
+        
+        enableVSCodeLauncher = true;
+        VSCodeLauncherKey = 'V';
+
+        enableWSLTerminalLauncher = true;
+        WSLTerminalLauncherKey = 'L';
+
+        enableTaskSwitcher = true;
+        allAppsSwitcherMod = VK_MENU;
+        allAppsSwitcherKey = VK_TAB;
+        sameAppsSwitcherMod = VK_MENU;
+        sameAppsSwitcherKey = VK_OEM_3;
+    }
 
     std::string GetConfigPath() {
         std::string baseAppPath = GetKnownFolderPath(FOLDERID_LocalAppData);
@@ -40,6 +58,8 @@ namespace Config {
     void SaveDefaultConfig(const std::string& fullPath) {
         std::ofstream file(fullPath);
         if (!file.is_open()) return;
+        
+        ApplyHardcodedDefaults();
 
         file << "{\n";
         
@@ -75,6 +95,17 @@ namespace Config {
         file << "}";
         
         file.close();
+    }
+
+    void OpenConfig() {
+        std::string configPath = GetConfigPath();
+        ShellExecuteA(NULL, "open", configPath.c_str(), NULL, NULL, SW_SHOW);
+    }
+
+    void DefaultConfig() {
+        std::string configPath = GetConfigPath();
+        SaveDefaultConfig(configPath);
+        LoadConfig();
     }
 
     std::string CleanValue(std::string s) {
@@ -131,6 +162,17 @@ namespace Config {
         }
     }
 
+    void CheckForUpdates() {
+        struct stat result;
+        std::string configPath = GetConfigPath();
+
+        if (stat(configPath.c_str(), &result) == 0) {
+            if (result.st_mtime > lastLoadTime) {
+                LoadConfig();
+            }
+        }
+    }
+
     void LoadConfig() {
         std::string configPath = GetConfigPath();
         std::ifstream file(configPath);
@@ -139,6 +181,13 @@ namespace Config {
             SaveDefaultConfig(configPath);
             return;
         }
+
+        struct stat result;
+        if (stat(configPath.c_str(), &result) == 0) {
+            lastLoadTime = result.st_mtime;
+        }
+
+        tabbedApps.clear();
 
         std::string line;
         while (std::getline(file, line)) {

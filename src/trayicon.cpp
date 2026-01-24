@@ -1,5 +1,6 @@
 #include "common.hpp"
 #include "onstartup.hpp"
+#include "config.hpp"
 #include "trayicon.hpp"
 
 #define ID_TRAY_APP_ICON 1001
@@ -48,7 +49,10 @@ void ShowTrayMenu(HWND hGhostWnd) {
         UINT startupFlags = MF_STRING | (startup ? MF_CHECKED : MF_UNCHECKED);
         AppendMenuA(hMenu, startupFlags, 1, "On Startup");
         AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
-        AppendMenuA(hMenu, MF_STRING, 2, "Quit Kinesis");
+        AppendMenuA(hMenu, MF_STRING,    2, "Edit Configuration");
+        AppendMenuA(hMenu, MF_STRING,    3, "Restore Configuration Defaults");
+        AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
+        AppendMenuA(hMenu, MF_STRING,    4, "Quit Kinesis");
 
         SetForegroundWindow(hGhostWnd);
 
@@ -63,7 +67,14 @@ void ShowTrayMenu(HWND hGhostWnd) {
 
         if (clicked == 1) {
             SetStartup(!startup);
-        } else if (clicked == 2) {
+        }
+        else if (clicked == 2) {
+            Config::OpenConfig();
+        }
+        else if (clicked == 3) {
+            Config::DefaultConfig();
+        }
+        else if (clicked == 4) {
             PostQuitMessage(0);
         }
 

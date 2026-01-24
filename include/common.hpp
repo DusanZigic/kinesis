@@ -14,6 +14,7 @@
 #include <shlwapi.h>
 #include <gdiplus.h>
 
+#include <sys/stat.h>
 #include <iostream>
 #include <vector>
 #include <set>

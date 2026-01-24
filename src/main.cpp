@@ -10,6 +10,7 @@ LRESULT CALLBACK GhostWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
         case WM_TRAYICON:
             if (lp == WM_RBUTTONUP) {
+                Config::CheckForUpdates();
                 ShowTrayMenu(hwnd);
             }
             break;
