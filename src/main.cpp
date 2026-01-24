@@ -32,11 +32,11 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
 
         if (isDown) {
             if (ctrlHeld && altHeld) {
-                if (pKeyBoard->vkCode == 'V') {
+                if (Config::enableVSCodeLauncher && pKeyBoard->vkCode == Config::VSCodeLauncherKey) {
                     ShowLauncher(LauncherMode::VSCode);
                     return 1;
                 }
-                if (pKeyBoard->vkCode == 'L') {
+                if (Config::enableWSLTerminalLauncher && pKeyBoard->vkCode == Config::WSLTerminalLauncherKey) {
                     ShowLauncher(LauncherMode::WSL);
                     return 1;
                 }
