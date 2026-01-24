@@ -443,40 +443,6 @@ static void RefreshMatches(std::string input) {
 
     InvalidateRect(hListBox, NULL, FALSE);
     UpdateWindow(hListBox);
-
-    // for (const auto& path : activeCtx->history) {
-    //     if (currentMatches.size() >= maxPathsN) {
-    //         break;
-    //     }
-
-    //     std::string lowerPath = path;
-    //     std::transform(lowerPath.begin(), lowerPath.end(), lowerPath.begin(), ::tolower);
-
-    //     if (input.empty() || lowerPath.find(lowerInput) != std::string::npos) {
-    //         addMatch(path);
-    //     }
-    // }
-
-    // if (currentMatches.size() < maxPathsN) {
-    //     std::lock_guard<std::mutex> lock(crawlMutex);
-    //     for (const auto& path : allCrawledFolders) {
-    //         if (currentMatches.size() >= maxPathsN) {
-    //             break;
-    //         }
-    //         std::string lowerPath = path;
-    //         std::transform(lowerPath.begin(), lowerPath.end(), lowerPath.begin(), ::tolower);
-            
-    //         if (lowerPath.find(lowerInput) != std::string::npos) {
-    //             addMatch(path);
-    //         }
-    //     }
-    // }
-
-    // if (!currentMatches.empty()) {
-    //     SendMessage(hListBox, LB_SETCURSEL, 0, 0);
-    //     SetWindowTextA(hPathLabel, currentMatches[0].c_str());
-    // }
-    // InvalidateRect(hListBox, NULL, FALSE);
 }
 
 static LRESULT CALLBACK EditSubclassProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR, DWORD_PTR) {
