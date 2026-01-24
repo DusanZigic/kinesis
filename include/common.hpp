@@ -27,5 +27,7 @@
 #include <mutex>
 #include <filesystem>
 
+std::string ToUpper(std::string s);
+std::string ToLower(std::string s);
 std::string GetProcessName(DWORD pid);
 std::string GetKnownFolderPath(REFKNOWNFOLDERID rfid);
