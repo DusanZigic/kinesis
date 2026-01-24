@@ -1,6 +1,8 @@
 #include "common.hpp"
 #include "launchers.hpp"
 
+namespace fs = std::filesystem;
+
 static LauncherContext ctxVSCode;
 static LauncherContext ctxWSL;
 static LauncherContext* activeCtx = nullptr;
