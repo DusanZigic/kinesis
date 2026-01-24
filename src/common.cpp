@@ -1,11 +1,16 @@
 #include "common.hpp"
 
 std::string GetProcessName(DWORD pid) {
-    char name[MAX_PATH] = "<unknown>";
-    HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
+    char path[MAX_PATH] = {0};
+    DWORD size = MAX_PATH;
+    HANDLE hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
     if (hProcess) {
-        GetModuleBaseNameA(hProcess, NULL, name, MAX_PATH);
+        if (QueryFullProcessImageNameA(hProcess, 0, path, &size)) {
+            std::string fileName = PathFindFileNameA(path);
+            CloseHandle(hProcess);
+            return fileName;
+        }
         CloseHandle(hProcess);
     }
-    return std::string(name);
+    return "<unknown>";
 }
