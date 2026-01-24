@@ -76,8 +76,10 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
                 AppCycleSwitcher(VK_OEM_3, SwitcherMode::SameApp);
                 return 1;
             }
-            if (wParam == WM_SYSKEYDOWN && pKeyBoard->vkCode >= '1' && pKeyBoard->vkCode <= '9') {
-                if (SwitchTabs(pKeyBoard->vkCode)) return 1;
+            if (Config::enableTabSwitcher) {
+                if (wParam == WM_SYSKEYDOWN && pKeyBoard->vkCode >= '1' && pKeyBoard->vkCode <= '9') {
+                    if (SwitchTabs(pKeyBoard->vkCode)) return 1;
+                }
             }
 
         }

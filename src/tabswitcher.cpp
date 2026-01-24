@@ -1,20 +1,13 @@
 #include "common.hpp"
+#include "config.hpp"
 #include "tabswitcher.hpp"
-
-static const std::set<std::string> tabbedApps = {
-    "chrome.exe", 
-    "msedge.exe", 
-    "firefox.exe", 
-    "explorer.exe",
-    "WindowsTerminal.exe"
-};
 
 bool SwitchTabs(DWORD vkCode) {
     HWND activeWindow = GetForegroundWindow();
     DWORD processId;
     GetWindowThreadProcessId(activeWindow, &processId);
     std::string windowProcessName = GetProcessName(processId);
-    if (tabbedApps.count(windowProcessName)) {
+    if (Config::tabbedApps.count(windowProcessName)) {
         INPUT inputs[8] {};
         // logically release ALT
         inputs[0].type       = INPUT_KEYBOARD;
