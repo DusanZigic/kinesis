@@ -16,6 +16,7 @@ static SwitcherLayout cachedLayout;
 
 static std::vector<HWND> sessionWindows;
 static size_t sessionIndex = 0;
+static size_t lastAllAppsIndex = 0;
 
 static const double MAX_SWITCHER_RELATIVE_WIDTH = 0.85;
 
@@ -377,11 +378,10 @@ void ResetSwitcherSession(DWORD vkCode) {
     }
 }
 
-static void InitializeSwitcher(SwitcherMode mode, HWND anchorWindow, DWORD vkCode) {
+static void InitializeSwitcher(SwitcherMode mode, HWND anchorWindow) {
     if (!anchorWindow) return;
 
     bool isSwap = (currentMode != SwitcherMode::None && currentMode != mode);
-    bool isFirstStart = (currentMode == SwitcherMode::None);
 
     DWORD targetPid;
     GetWindowThreadProcessId(anchorWindow, &targetPid);
@@ -428,10 +428,6 @@ static void InitializeSwitcher(SwitcherMode mode, HWND anchorWindow, DWORD vkCod
         }
     }
 
-    if (isFirstStart && (vkCode == VK_TAB || vkCode == VK_OEM_3)) {
-        sessionIndex = (sessionIndex + 1) % (int)sessionWindows.size();
-    }
-
     cachedLayout = CalculateSwitcherLayout((int)sessionWindows.size(), currentMode);
     CreateSwitcherUI();
     UpdateThumbnailGallery();
@@ -442,19 +438,51 @@ static void InitializeSwitcher(SwitcherMode mode, HWND anchorWindow, DWORD vkCod
 
 void AppCycleSwitcher(DWORD vkCode, SwitcherMode requestedMode) {
     if (currentMode != SwitcherMode::None && requestedMode != SwitcherMode::None && requestedMode != currentMode) {
+        if (sessionWindows.empty() || sessionIndex >= sessionWindows.size()) {
+            InitializeSwitcher(requestedMode, GetForegroundWindow());
+            return;
+        }
+
+        if (currentMode == SwitcherMode::AllApps) {
+            lastAllAppsIndex = sessionIndex;
+        }
+
         HWND anchor = sessionWindows[sessionIndex];
-        InitializeSwitcher(requestedMode, anchor, vkCode);
+        if (!IsWindow(anchor)) {
+            anchor = GetForegroundWindow();
+        }
+        
+        InitializeSwitcher(requestedMode, anchor);
+        
+        if (currentMode != requestedMode) {
+            return; 
+        }
+
+        if (requestedMode == SwitcherMode::AllApps) {
+            sessionIndex = lastAllAppsIndex;
+        }
+
+        sessionIndex = (sessionIndex + 1) % sessionWindows.size();
+
+        UpdateThumbnailGallery();
+        InvalidateRect(hSwitcherWindow, NULL, FALSE);
         return;
     }
 
     if (currentMode == SwitcherMode::None) {
-        InitializeSwitcher(requestedMode, GetForegroundWindow(), vkCode);
+        InitializeSwitcher(requestedMode, GetForegroundWindow());
+        
+        if (!sessionWindows.empty()) {
+            sessionIndex = (sessionIndex + 1) % sessionWindows.size();
+        }
         return;
     }
 
     if (currentMode != SwitcherMode::None && !sessionWindows.empty()) {
-        if ((currentMode == SwitcherMode::AllApps && vkCode == VK_TAB) ||
-            (currentMode == SwitcherMode::SameApp && vkCode == VK_OEM_3)) {
+        bool isTabInAll = (currentMode == SwitcherMode::AllApps && vkCode == VK_TAB);
+        bool isTildeInSame = (currentMode == SwitcherMode::SameApp && vkCode == VK_OEM_3);
+
+        if (isTabInAll || isTildeInSame) {
             sessionIndex = (sessionIndex + 1) % sessionWindows.size();
         }
         else if (vkCode == VK_LEFT || vkCode == VK_RIGHT || vkCode == VK_UP || vkCode == VK_DOWN) {
