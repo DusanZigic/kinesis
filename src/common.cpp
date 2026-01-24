@@ -14,3 +14,17 @@ std::string GetProcessName(DWORD pid) {
     }
     return "<unknown>";
 }
+std::string GetKnownFolderPath(REFKNOWNFOLDERID rfid) {
+    PWSTR pszPath = NULL;
+    std::string path = "";
+    if (SUCCEEDED(SHGetKnownFolderPath(rfid, 0, NULL, &pszPath))) {
+        int size = WideCharToMultiByte(CP_UTF8, 0, pszPath, -1, NULL, 0, NULL, NULL);
+        if (size > 0) {
+            std::vector<char> buf(size);
+            WideCharToMultiByte(CP_UTF8, 0, pszPath, -1, buf.data(), size, NULL, NULL);
+            path = buf.data();
+        }
+        CoTaskMemFree(pszPath);
+    }
+    return path;
+}

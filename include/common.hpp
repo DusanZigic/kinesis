@@ -19,6 +19,7 @@
 #include <set>
 #include <algorithm>
 #include <string>
+#include <sstream>
 #include <cmath>
 #include <fstream>
 #include <thread>
@@ -27,3 +28,4 @@
 #include <filesystem>
 
 std::string GetProcessName(DWORD pid);
+std::string GetKnownFolderPath(REFKNOWNFOLDERID rfid);
