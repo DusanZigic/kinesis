@@ -4,6 +4,7 @@
 #include "taskswitcher.hpp"
 #include "launchers.hpp"
 #include "quitsequence.hpp"
+#include "config.hpp"
 
 LRESULT CALLBACK GhostWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
@@ -118,6 +119,8 @@ int main() {
     Gdiplus::GdiplusStartupInput gdiplusStartupInput;
     ULONG_PTR gdiplusToken;
     Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
+
+    Config::LoadConfig();
     
     InitializeLauncher();
     
