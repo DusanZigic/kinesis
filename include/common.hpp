@@ -5,6 +5,7 @@
 #endif
 
 #include <windows.h>
+#include <shellapi.h>
 #include <dwmapi.h>
 #include <psapi.h>
 #include <commoncontrols.h>

@@ -13,9 +13,7 @@ LRESULT CALLBACK GhostWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             }
             break;
         case WM_DESTROY:
-#ifdef NDEBUG
-            RemoveTrayIcon(hwnd);
-#endif
+            HandleTrayCleanup(hwnd);
             PostQuitMessage(0);
             return 0;
     }
@@ -107,19 +105,7 @@ int main() {
     RegisterClassA(&wc);
 
     HWND hGhostWnd = CreateWindowA(wc.lpszClassName, "KinesisGhost", 0, 0, 0, 0, 0, NULL, NULL, GetModuleHandle(NULL), NULL);
-
-#ifdef NDEBUG
-    HINSTANCE hInst = GetModuleHandle(NULL);
-    HICON hIcon = LoadIcon(hInst, MAKEINTRESOURCE(1));
-    if (hIcon) {
-        InitTrayIcon(hGhostWnd, hIcon);
-    } else {
-        HICON hDefault = LoadIcon(NULL, IDI_APPLICATION);
-        InitTrayIcon(hGhostWnd, hDefault);
-    }
-#else
-    (void)hGhostWnd;
-#endif
+    HandleTrayInit(hGhostWnd);
 
     HHOOK hhkLowLevelKybd = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, GetModuleHandle(NULL), 0);
     if (hhkLowLevelKybd == NULL) {

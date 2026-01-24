@@ -1,30 +1,40 @@
+#include "common.hpp"
 #include "onstartup.hpp"
 #include "trayicon.h"
 
-void InitTrayIcon(HWND hGhostWnd, HICON hIcon) {
-    NOTIFYICONDATAA nid {};
-    nid.cbSize = sizeof(NOTIFYICONDATAA);
+#define ID_TRAY_APP_ICON 1001
+
+void HandleTrayInit(HWND hGhostWnd) {
+#ifdef NDEBUG
+    HINSTANCE hInst = GetModuleHandle(NULL);
+    HICON hIcon = LoadIcon(hInst, MAKEINTRESOURCE(1));
+    if (!hIcon) hIcon = LoadIcon(NULL, IDI_APPLICATION);
+
+    NOTIFYICONDATAA nid = {};
+    nid.cbSize = sizeof(nid);
     nid.hWnd = hGhostWnd;
     nid.uID = ID_TRAY_APP_ICON;
     nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
-    nid.uCallbackMessage = WM_TRAYICON; 
+    nid.uCallbackMessage = WM_TRAYICON;
     nid.hIcon = hIcon;
-
-    if (!hIcon) {
-        nid.hIcon = LoadIcon(NULL, IDI_APPLICATION); 
-    }
-    
-    strcpy_s(nid.szTip, "Kinesis");
+    strcpy(nid.szTip, "kinesis");
 
     Shell_NotifyIconA(NIM_ADD, &nid);
+#else
+    (void)hGhostWnd;
+#endif
 }
 
-void RemoveTrayIcon(HWND hGhostWnd) {
-    NOTIFYICONDATAA nid {};
-    nid.cbSize = sizeof(NOTIFYICONDATAA);
+void HandleTrayCleanup(HWND hGhostWnd) {
+#ifdef NDEBUG
+    NOTIFYICONDATAA nid = {};
+    nid.cbSize = sizeof(nid);
     nid.hWnd = hGhostWnd;
     nid.uID = ID_TRAY_APP_ICON;
     Shell_NotifyIconA(NIM_DELETE, &nid);
+#else
+    (void)hGhostWnd;
+#endif
 }
 
 void ShowTrayMenu(HWND hGhostWnd) {
