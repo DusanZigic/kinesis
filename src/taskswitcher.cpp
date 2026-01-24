@@ -348,10 +348,7 @@ void HandleArrowNavigation(DWORD vkCode) {
 void ResetSwitcherSession(DWORD vkCode) {
     if (currentMode == SwitcherMode::None) return;
 
-    if (vkCode == VK_MENU || vkCode == VK_RETURN) {
-        for (auto t : sessionThumbs) DwmUnregisterThumbnail(t);
-        sessionThumbs.clear();
-
+    if (vkCode != VK_ESCAPE) {
         if (sessionIndex < sessionWindows.size()) {
             HWND target = sessionWindows[sessionIndex];
 
@@ -365,17 +362,20 @@ void ResetSwitcherSession(DWORD vkCode) {
             SetForegroundWindow(target);
             SetActiveWindow(target);
         }
-
-        if (hSwitcherWindow) {
-            DestroyWindow(hSwitcherWindow);
-            hSwitcherWindow = NULL;
-        }
-
-        currentMode = SwitcherMode::None;
-        sessionIndex = 0;
-        sessionWindows.clear();
-        seenProcessNames.clear();
     }
+
+    for (auto t : sessionThumbs) DwmUnregisterThumbnail(t);
+    sessionThumbs.clear();
+
+    if (hSwitcherWindow) {
+        DestroyWindow(hSwitcherWindow);
+        hSwitcherWindow = NULL;
+    }
+
+    currentMode = SwitcherMode::None;
+    sessionIndex = 0;
+    sessionWindows.clear();
+    seenProcessNames.clear();
 }
 
 static void InitializeSwitcher(SwitcherMode mode, HWND anchorWindow) {

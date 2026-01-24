@@ -64,6 +64,10 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
                     ResetSwitcherSession(VK_RETURN);
                     return 1;
                 }
+                if (pKeyBoard->vkCode == VK_ESCAPE) {
+                    ResetSwitcherSession(VK_ESCAPE);
+                    return 1;
+                }
             }
             if (pKeyBoard->vkCode == VK_TAB && altHeld) {
                 AppCycleSwitcher(VK_TAB, SwitcherMode::AllApps);
