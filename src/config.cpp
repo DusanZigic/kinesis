@@ -19,8 +19,6 @@ namespace Config {
     unsigned int sameAppsSwitcherMod;
     unsigned int sameAppsSwitcherKey;
 
-    time_t lastLoadTime = 0;
-
     void ApplyHardcodedDefaults() {
         enableTabSwitcher = true;
         tabbedApps.clear();
@@ -162,17 +160,6 @@ namespace Config {
         }
     }
 
-    void CheckForUpdates() {
-        struct stat result;
-        std::string configPath = GetConfigPath();
-
-        if (stat(configPath.c_str(), &result) == 0) {
-            if (result.st_mtime > lastLoadTime) {
-                LoadConfig();
-            }
-        }
-    }
-
     void LoadConfig() {
         std::string configPath = GetConfigPath();
         std::ifstream file(configPath);
@@ -180,11 +167,6 @@ namespace Config {
         if (!file.is_open()) {
             SaveDefaultConfig(configPath);
             return;
-        }
-
-        struct stat result;
-        if (stat(configPath.c_str(), &result) == 0) {
-            lastLoadTime = result.st_mtime;
         }
 
         tabbedApps.clear();

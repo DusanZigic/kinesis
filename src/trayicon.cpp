@@ -50,9 +50,10 @@ void ShowTrayMenu(HWND hGhostWnd) {
         AppendMenuA(hMenu, startupFlags, 1, "On Startup");
         AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
         AppendMenuA(hMenu, MF_STRING,    2, "Edit Configuration");
-        AppendMenuA(hMenu, MF_STRING,    3, "Restore Configuration Defaults");
+        AppendMenuA(hMenu, MF_STRING,    3, "Reload Configuration");
+        AppendMenuA(hMenu, MF_STRING,    4, "Restore Configuration Defaults");
         AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
-        AppendMenuA(hMenu, MF_STRING,    4, "Quit Kinesis");
+        AppendMenuA(hMenu, MF_STRING,    5, "Quit Kinesis");
 
         SetForegroundWindow(hGhostWnd);
 
@@ -72,9 +73,12 @@ void ShowTrayMenu(HWND hGhostWnd) {
             Config::OpenConfig();
         }
         else if (clicked == 3) {
-            Config::DefaultConfig();
+            Config::LoadConfig();
         }
         else if (clicked == 4) {
+            Config::DefaultConfig();
+        }
+        else if (clicked == 5) {
             PostQuitMessage(0);
         }
 

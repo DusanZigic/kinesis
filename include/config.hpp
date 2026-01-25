@@ -20,6 +20,5 @@ namespace Config {
     void SaveDefaultConfig(const std::string& fullPath);
     void LoadConfig();
     void OpenConfig();
-    void CheckForUpdates();
     void DefaultConfig();
 }
