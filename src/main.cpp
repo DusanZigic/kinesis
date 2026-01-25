@@ -5,9 +5,21 @@
 #include "launchers.hpp"
 #include "quitsequence.hpp"
 #include "config.hpp"
+#include "systemstate.hpp"
 
 LRESULT CALLBACK GhostWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    if (SystemState::uTaskbarRestartMsg != 0 && msg == SystemState::uTaskbarRestartMsg) {
+        HandleTrayInit(hwnd);
+        return 0;
+    }
+
     switch (msg) {
+        case WM_CREATE:
+            ChangeWindowMessageFilterEx(hwnd, SystemState::uTaskbarRestartMsg, 1, NULL);
+            ChangeWindowMessageFilterEx(hwnd, WM_TRAYICON, 1, NULL);
+            
+            HandleTrayInit(hwnd);
+            return 0;
         case WM_TRAYICON:
             if (lp == WM_RBUTTONUP) {
                 ShowTrayMenu(hwnd);
@@ -110,19 +122,14 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
 int main() {
     SetProcessDPIAware();
 
-    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
-
-    HANDLE hMutex = CreateMutexA(NULL, TRUE, "Global\\Kinesis_SingleInstance_Mutex");
-    if (GetLastError() == ERROR_ALREADY_EXISTS) {
-        if (hMutex) CloseHandle(hMutex);
-        CoUninitialize();
-        return 0;
-    }
-
     INITCOMMONCONTROLSEX icex;
     icex.dwSize = sizeof(INITCOMMONCONTROLSEX);
     icex.dwICC  = ICC_STANDARD_CLASSES;
     InitCommonControlsEx(&icex);
+
+    if (!SystemState::Initialize()) {
+        return 0;
+    }
 
     WNDCLASSA wc {};
     wc.lpfnWndProc = GhostWndProc;
@@ -131,7 +138,7 @@ int main() {
     RegisterClassA(&wc);
 
     HWND hGhostWnd = CreateWindowA(wc.lpszClassName, "KinesisGhost", 0, 0, 0, 0, 0, NULL, NULL, GetModuleHandle(NULL), NULL);
-    HandleTrayInit(hGhostWnd);
+    if (hGhostWnd == NULL) return 0;
 
     HHOOK hhkLowLevelKybd = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, GetModuleHandle(NULL), 0);
     if (hhkLowLevelKybd == NULL) {
@@ -142,9 +149,7 @@ int main() {
     Gdiplus::GdiplusStartupInput gdiplusStartupInput;
     ULONG_PTR gdiplusToken;
     Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
-
-    Config::LoadConfig();
-    
+    Config::LoadConfig();    
     InitializeLauncher();
     
     MSG msg;
@@ -153,13 +158,10 @@ int main() {
         DispatchMessage(&msg);
     }
 
-    ReleaseLauncherResources();
-
-    Gdiplus::GdiplusShutdown(gdiplusToken);
-
     UnhookWindowsHookEx(hhkLowLevelKybd);
-
-    CoUninitialize();
+    ReleaseLauncherResources();
+    Gdiplus::GdiplusShutdown(gdiplusToken);
+    SystemState::CleanUp();
 
     return (int)msg.wParam;
 }

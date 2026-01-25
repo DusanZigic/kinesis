@@ -1,6 +1,6 @@
 #include "common.hpp"
-#include "onstartup.hpp"
 #include "config.hpp"
+#include "systemstate.hpp"
 #include "trayicon.hpp"
 
 #define ID_TRAY_APP_ICON 1001
@@ -39,49 +39,46 @@ void HandleTrayCleanup(HWND hGhostWnd) {
 }
 
 void ShowTrayMenu(HWND hGhostWnd) {
-    POINT curPoint;
-    GetCursorPos(&curPoint);
-
     HMENU hMenu = CreatePopupMenu();
     if (hMenu) {
-        bool startup = IsStartupEnabled();
+        bool isOnStartup = SystemState::IsOnStartupEnabled();
+        bool isAdminRun  = SystemState::IsRunAsAdminEnabled();
 
-        UINT startupFlags = MF_STRING | (startup ? MF_CHECKED : MF_UNCHECKED);
-        AppendMenuA(hMenu, startupFlags, 1, "On Startup");
+        AppendMenuA(hMenu, MF_STRING | (isOnStartup ? MF_CHECKED : MF_UNCHECKED), ID_STARTUP_TOGGLE, "On Startup");
+        AppendMenuA(hMenu, MF_STRING | (isAdminRun  ? MF_CHECKED : MF_UNCHECKED), ID_ADMIN_TOGGLE,   "As Admin");
         AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
-        AppendMenuA(hMenu, MF_STRING,    2, "Edit Configuration");
-        AppendMenuA(hMenu, MF_STRING,    3, "Reload Configuration");
-        AppendMenuA(hMenu, MF_STRING,    4, "Restore Configuration Defaults");
+        AppendMenuA(hMenu, MF_STRING,    ID_EDIT_CONFIG,    "Edit Configuration");
+        AppendMenuA(hMenu, MF_STRING,    ID_RELOAD_CONFIG,  "Reload Configuration");
+        AppendMenuA(hMenu, MF_STRING,    ID_DEFAULT_CONFIG, "Restore Configuration Defaults");
         AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
-        AppendMenuA(hMenu, MF_STRING,    5, "Quit Kinesis");
+        AppendMenuA(hMenu, MF_STRING,    ID_EXIT, "Quit Kinesis");
 
+        POINT curPoint;
+        GetCursorPos(&curPoint);
         SetForegroundWindow(hGhostWnd);
 
-        int clicked = TrackPopupMenu(
-            hMenu, 
-            TPM_BOTTOMALIGN | TPM_LEFTALIGN | TPM_RETURNCMD | TPM_NONOTIFY, 
-            curPoint.x, curPoint.y,
-            0,
-            hGhostWnd,
-            NULL
-        );
-
-        if (clicked == 1) {
-            SetStartup(!startup);
-        }
-        else if (clicked == 2) {
-            Config::OpenConfig();
-        }
-        else if (clicked == 3) {
-            Config::LoadConfig();
-        }
-        else if (clicked == 4) {
-            Config::DefaultConfig();
-        }
-        else if (clicked == 5) {
-            PostQuitMessage(0);
-        }
-
+        int clicked = TrackPopupMenu(hMenu, TPM_RETURNCMD | TPM_RIGHTBUTTON, curPoint.x, curPoint.y, 0, hGhostWnd, NULL);
         DestroyMenu(hMenu);
+
+        switch (clicked) {
+            case ID_STARTUP_TOGGLE:
+                SystemState::SetOnStartup(!isOnStartup);
+                break;
+            case ID_ADMIN_TOGGLE:
+                SystemState::SetRunAsAdmin(!isAdminRun);
+                break;
+            case ID_EDIT_CONFIG:
+                Config::OpenConfig();
+                break;
+            case ID_RELOAD_CONFIG:
+                Config::LoadConfig();
+                break;
+            case ID_DEFAULT_CONFIG:
+                Config::DefaultConfig();
+                break;
+            case ID_EXIT:
+                PostQuitMessage(0);
+                break;
+        }
     }
 }
