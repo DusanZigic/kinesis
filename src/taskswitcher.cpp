@@ -98,14 +98,32 @@ RECT GetThumbRect(const SwitcherLayout& layout, size_t index, size_t count) {
 HICON GetHighResIcon(HWND hwnd) {
     HICON hIcon = NULL;
 
-    SendMessageTimeoutA(hwnd, WM_GETICON, ICON_BIG, 0, SMTO_ABORTIFHUNG, 100, (PDWORD_PTR)&hIcon);
-
-    if (!hIcon) {
-        hIcon = (HICON)GetClassLongPtrA(hwnd, GCLP_HICON);
+    DWORD processId;
+    GetWindowThreadProcessId(hwnd, &processId);
+    HANDLE hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, processId);
+    
+    if (hProcess) {
+        char path[MAX_PATH];
+        DWORD size = MAX_PATH;
+        if (QueryFullProcessImageNameA(hProcess, 0, path, &size)) {
+            SHFILEINFOA sfi {};
+            if (SHGetFileInfoA(path, 0, &sfi, sizeof(sfi), SHGFI_ICON | SHGFI_LARGEICON)) {
+                hIcon = sfi.hIcon;
+            }
+        }
+        CloseHandle(hProcess);
     }
 
     if (!hIcon) {
-        SendMessageTimeoutA(hwnd, WM_GETICON, ICON_SMALL, 0, SMTO_ABORTIFHUNG, 100, (PDWORD_PTR)&hIcon);
+        SendMessageTimeout(hwnd, WM_GETICON, ICON_BIG, 0, SMTO_ABORTIFHUNG, 100, (PDWORD_PTR)&hIcon);
+    }
+
+    if (!hIcon) {
+        hIcon = (HICON)GetClassLongPtr(hwnd, GCLP_HICON);
+    }
+
+    if (!hIcon) {
+        hIcon = LoadIcon(NULL, IDI_APPLICATION);
     }
 
     return hIcon;
