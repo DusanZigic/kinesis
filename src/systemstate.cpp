@@ -82,17 +82,6 @@ namespace SystemState {
         std::string delCmd = "/delete /tn \"" + std::string(APP_NAME) + "\" /f";
         ShellExecuteA(NULL, "open", "schtasks.exe", delCmd.c_str(), NULL, SW_HIDE);
 
-        // if (startup) {
-        //     if (admin) {
-        //         std::string addCmd = "/create /tn \"" + std::string(APP_NAME) + "\" /tr " + escapedPath + " /sc onlogon /rl highest /f";
-        //         ShellExecuteA(NULL, "open", "schtasks.exe", addCmd.c_str(), NULL, SW_HIDE);
-        //     } else {
-        //         if (RegOpenKeyExA(HKEY_CURRENT_USER, RUN_KEY, 0, KEY_WRITE, &hRunKey) == ERROR_SUCCESS) {
-        //             RegSetValueExA(hRunKey, APP_NAME, 0, REG_SZ, (const BYTE*)szPath, (DWORD)strlen(szPath) + 1);
-        //             RegCloseKey(hRunKey);
-        //         }
-        //     }
-        // }
         if (startup) {
             if (admin) {
                 std::string addCmd = "/create /tn \"" + std::string(APP_NAME) + "\" /tr " + escapedPath + " /sc onlogon /rl highest /f";
