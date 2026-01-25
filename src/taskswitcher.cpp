@@ -150,7 +150,7 @@ static BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) {
 
         WindowEntry entry;
         entry.hwnd = hwnd;
-        entry.hIcon = GetHighResIcon(hwnd);
+        entry.hIcon = NULL;
         char title[256];
         GetWindowTextA(hwnd, title, sizeof(title));
         entry.title = title;
@@ -397,6 +397,9 @@ void ResetSwitcherSession(DWORD vkCode) {
     for (auto t : sessionThumbs) DwmUnregisterThumbnail(t);
     sessionThumbs.clear();
 
+    for (auto entry : sessionWindows) if (entry.hIcon) DestroyIcon(entry.hIcon);
+    sessionWindows.clear();
+
     if (hSwitcherWindow) {
         DestroyWindow(hSwitcherWindow);
         hSwitcherWindow = NULL;
@@ -404,7 +407,6 @@ void ResetSwitcherSession(DWORD vkCode) {
 
     currentMode = SwitcherMode::None;
     sessionIndex = 0;
-    sessionWindows.clear();
     seenProcessNames.clear();
 }
 
@@ -441,6 +443,10 @@ static void InitializeSwitcher(SwitcherMode mode, HWND anchorWindow) {
     if (isSwap) {
         for (auto t : sessionThumbs) DwmUnregisterThumbnail(t);
         sessionThumbs.clear();
+        
+        for (auto entry : sessionWindows) if (entry.hIcon) DestroyIcon(entry.hIcon);
+        sessionWindows.clear();
+        
         if (hSwitcherWindow) {
             DestroyWindow(hSwitcherWindow);
             hSwitcherWindow = NULL;
