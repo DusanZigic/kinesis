@@ -6,9 +6,15 @@ enum class SwitcherMode {
     AllApps
 };
 
+struct WindowEntry {
+    HWND hwnd;
+    HICON hIcon;
+    std::string title;
+};
+
 struct WindowData {
     std::string targetProcessName;
-    std::vector<HWND> windows;
+    std::vector<WindowEntry> windows;
 };
 
 struct SwitcherLayout {

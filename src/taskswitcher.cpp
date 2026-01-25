@@ -15,7 +15,7 @@ static std::vector<HTHUMBNAIL> sessionThumbs;
 
 static SwitcherLayout cachedLayout;
 
-static std::vector<HWND> sessionWindows;
+static std::vector<WindowEntry> sessionWindows;
 static size_t sessionIndex = 0;
 static size_t lastAllAppsIndex = 0;
 
@@ -134,6 +134,7 @@ static BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) {
     DWORD windowPid;
     GetWindowThreadProcessId(hwnd, &windowPid);
     std::string windowProcessName = GetProcessName(windowPid);
+
     if (windowProcessName == wData->targetProcessName) {
         if (!IsWindowVisible(hwnd)) return TRUE;
 
@@ -144,9 +145,16 @@ static BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) {
         LONG exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
         if ((exStyle & WS_EX_TOOLWINDOW) && !(exStyle & WS_EX_APPWINDOW)) return TRUE;
 
-        if (GetWindowTextLength(hwnd) == 0) return TRUE;
+        int len = GetWindowTextLengthA(hwnd);
+        if (len == 0) return TRUE;
 
-        wData->windows.push_back(hwnd);
+        WindowEntry entry;
+        entry.hwnd = hwnd;
+        entry.hIcon = GetHighResIcon(hwnd);
+        char title[256];
+        GetWindowTextA(hwnd, title, sizeof(title));
+        entry.title = title;
+        wData->windows.push_back(entry);
     }
     return TRUE;
 }
@@ -178,7 +186,13 @@ static BOOL CALLBACK EnumAllWindowsProc(HWND hwnd, LPARAM lParam) {
 
     if (seenProcessNames.find(processName) == seenProcessNames.end()) {
         seenProcessNames.insert(processName);
-        wData->windows.push_back(hwnd);
+        WindowEntry entry;
+        entry.hwnd = hwnd;
+        entry.hIcon = GetHighResIcon(hwnd);
+        char title[256];
+        GetWindowTextA(hwnd, title, sizeof(title));
+        entry.title = title;
+        wData->windows.push_back(entry);
     }
 
     return TRUE;
@@ -193,19 +207,16 @@ static LRESULT CALLBACK SwitcherWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPAR
 
             if (currentMode != SwitcherMode::None && !sessionWindows.empty()) {
                 HFONT oldFont = (HFONT)SelectObject(hdc, hSwitcherFont);
-                char title[256];
-                GetWindowTextA(sessionWindows[sessionIndex], title, sizeof(title));
+                std::string currentTitle = sessionWindows[sessionIndex].title;
                 SetTextColor(hdc, RGB(255, 255, 255));
                 SetBkMode(hdc, TRANSPARENT);
                 RECT titleRect = { 0, 0, cachedLayout.winW, cachedLayout.titleHeight };
-                DrawTextA(hdc, title, -1, &titleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
-
-                RECT highlightRect = GetThumbRect(cachedLayout, sessionIndex, sessionWindows.size());
+                DrawTextA(hdc, currentTitle.c_str(), -1, &titleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
 
                 if (currentMode == SwitcherMode::AllApps) {
                     for (size_t i = 0; i < sessionWindows.size(); ++i) {
                         RECT r = GetThumbRect(cachedLayout, i, sessionWindows.size());
-                        HICON hIcon = GetHighResIcon(sessionWindows[i]);
+                        HICON hIcon = sessionWindows[i].hIcon;
                         if (hIcon) {
                             int iconSize = (int)(cachedLayout.thumbH * 0.65);
                             int x = r.left + (cachedLayout.thumbW - iconSize) / 2;
@@ -215,6 +226,7 @@ static LRESULT CALLBACK SwitcherWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPAR
                     }
                 }
 
+                RECT highlightRect = GetThumbRect(cachedLayout, sessionIndex, sessionWindows.size());
                 InflateRect(&highlightRect, 6, 6);
                 HPEN hPen = CreatePen(PS_SOLID, 3, RGB(211, 211, 211)); 
                 HGDIOBJ oldPen = SelectObject(hdc, hPen);
@@ -224,7 +236,6 @@ static LRESULT CALLBACK SwitcherWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPAR
                 SelectObject(hdc, oldFont);
                 SelectObject(hdc, oldPen);
                 SelectObject(hdc, oldBrush);
-
                 DeleteObject(hPen);
             }
             EndPaint(hwnd, &ps);
@@ -297,7 +308,7 @@ static void UpdateThumbnailGallery() {
     for (size_t i=0; i<sessionWindows.size(); ++i) {
         HTHUMBNAIL hCurrentThumb = NULL;
         if (isInitialLoad) {
-            if (SUCCEEDED(DwmRegisterThumbnail(hSwitcherWindow, sessionWindows[i], &hCurrentThumb))) {
+            if (SUCCEEDED(DwmRegisterThumbnail(hSwitcherWindow, sessionWindows[i].hwnd, &hCurrentThumb))) {
                 sessionThumbs.push_back(hCurrentThumb);
             } else {
                 hCurrentThumb = sessionThumbs[i];
@@ -369,7 +380,7 @@ void ResetSwitcherSession(DWORD vkCode) {
 
     if (vkCode != VK_ESCAPE) {
         if (sessionIndex < sessionWindows.size()) {
-            HWND target = sessionWindows[sessionIndex];
+            HWND target = sessionWindows[sessionIndex].hwnd;
 
             if (hSwitcherWindow) ShowWindow(hSwitcherWindow, SW_HIDE);
             if (IsIconic(target)) ShowWindow(target, SW_RESTORE);
@@ -441,7 +452,7 @@ static void InitializeSwitcher(SwitcherMode mode, HWND anchorWindow) {
 
     sessionIndex = 0;
     for (size_t i = 0; i < sessionWindows.size(); ++i) {
-        if (sessionWindows[i] == anchorWindow) {
+        if (sessionWindows[i].hwnd == anchorWindow) {
             sessionIndex = (int)i;
             break;
         }
@@ -466,7 +477,7 @@ void AppCycleSwitcher(DWORD vkCode, SwitcherMode requestedMode) {
             lastAllAppsIndex = sessionIndex;
         }
 
-        HWND anchor = sessionWindows[sessionIndex];
+        HWND anchor = sessionWindows[sessionIndex].hwnd;
         if (!IsWindow(anchor)) {
             anchor = GetForegroundWindow();
         }
