@@ -683,7 +683,6 @@ static Gdiplus::Image* LoadImageFromResource(int resourceID) {
 }
 
 void InitializeLauncher() {
-    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
     SetUpStoragePath();
 
     ctxVSCode.type = LauncherMode::VSCode;
