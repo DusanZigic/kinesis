@@ -9,6 +9,7 @@ enum class SwitcherMode {
 struct WindowEntry {
     HWND hwnd;
     HICON hIcon;
+    RECT contentRect;
     std::string title;
 };
 

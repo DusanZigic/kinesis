@@ -2,6 +2,10 @@
 #include "config.hpp"
 #include "taskswitcher.hpp"
 
+#ifndef IID_IImageList
+extern "C" const GUID IID_IImageList = {0x46EB5926, 0x582E, 0x4017, {0x9F, 0xDF, 0xE8, 0x99, 0x8D, 0xAA, 0x09, 0x50}};
+#endif
+
 static SwitcherMode currentMode = SwitcherMode::None;
 
 static bool classRegistered = false;
@@ -19,7 +23,9 @@ static std::vector<WindowEntry> sessionWindows;
 static size_t sessionIndex = 0;
 static size_t lastAllAppsIndex = 0;
 
+static const COLORREF THEME_BG_COLOR = RGB(25, 25, 25);
 static const double MAX_SWITCHER_RELATIVE_WIDTH = 0.85;
+static const float ICON_MARGIN_RATIO = 0.12f;
 
 bool IsSwitcherActive() {
     return currentMode != SwitcherMode::None;
@@ -97,18 +103,33 @@ RECT GetThumbRect(const SwitcherLayout& layout, size_t index, size_t count) {
 
 HICON GetHighResIcon(HWND hwnd) {
     HICON hIcon = NULL;
-
+    char path[MAX_PATH];
     DWORD processId;
     GetWindowThreadProcessId(hwnd, &processId);
     HANDLE hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, processId);
     
     if (hProcess) {
-        char path[MAX_PATH];
         DWORD size = MAX_PATH;
         if (QueryFullProcessImageNameA(hProcess, 0, path, &size)) {
             SHFILEINFOA sfi {};
-            if (SHGetFileInfoA(path, 0, &sfi, sizeof(sfi), SHGFI_ICON | SHGFI_LARGEICON)) {
-                hIcon = sfi.hIcon;
+            if (SHGetFileInfoA(path, 0, &sfi, sizeof(sfi), SHGFI_SYSICONINDEX)) {
+                IImageList* piml = NULL;
+                if (SUCCEEDED(SHGetImageList(SHIL_JUMBO, IID_IImageList, (void**)&piml))) {
+                    piml->GetIcon(sfi.iIcon, ILD_TRANSPARENT, &hIcon);
+                    piml->Release();
+                }
+                if (!hIcon && SUCCEEDED(SHGetImageList(SHIL_EXTRALARGE, IID_IImageList, (void**)&piml))) {
+                    if (SHGetFileInfoA(path, 0, &sfi, sizeof(sfi), SHGFI_ICON | SHGFI_LARGEICON)) {
+                        piml->GetIcon(sfi.iIcon, ILD_TRANSPARENT, &hIcon);
+                        piml->Release();
+                    }
+                }
+            }
+            if (!hIcon) {
+                SHFILEINFOA sfiStandard {};
+                if (SHGetFileInfoA(path, 0, &sfiStandard, sizeof(sfiStandard), SHGFI_ICON | SHGFI_LARGEICON)) {
+                    hIcon = sfiStandard.hIcon;
+                }
             }
         }
         CloseHandle(hProcess);
@@ -125,8 +146,64 @@ HICON GetHighResIcon(HWND hwnd) {
     if (!hIcon) {
         hIcon = LoadIcon(NULL, IDI_APPLICATION);
     }
-
+    
     return hIcon;
+}
+
+RECT GetIconContentRect(HICON hIcon) {
+    ICONINFO ii;
+    GetIconInfo(hIcon, &ii);
+
+    BITMAP bm;
+    GetObject(ii.hbmColor, sizeof(bm), &bm);
+
+    BITMAPINFO bmi {};
+    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth = bm.bmWidth;
+    bmi.bmiHeader.biHeight = -bm.bmHeight;
+    bmi.bmiHeader.biPlanes = 1;
+    bmi.bmiHeader.biBitCount = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
+
+    std::vector<uint32_t> pixels(bm.bmWidth * bm.bmHeight);
+    HDC hdc = GetDC(NULL);
+    GetDIBits(hdc, ii.hbmColor, 0, bm.bmHeight, pixels.data(), &bmi, DIB_RGB_COLORS);
+    ReleaseDC(NULL, hdc);
+
+    int minX = bm.bmWidth, minY = bm.bmHeight, maxX = 0, maxY = 0;
+    bool found = false;
+
+    for (int y = 0; y < bm.bmHeight; y++) {
+        for (int x = 0; x < bm.bmWidth; x++) {
+            uint8_t alpha = (pixels[y * bm.bmWidth + x] >> 24);
+            if (alpha > 20) {
+                if (x < minX) minX = x;
+                if (x > maxX) maxX = x;
+                if (y < minY) minY = y;
+                if (y > maxY) maxY = y;
+                found = true;
+            }
+        }
+    }
+
+    DeleteObject(ii.hbmColor);
+    DeleteObject(ii.hbmMask);
+
+    if (!found) return {0, 0, bm.bmWidth, bm.bmHeight};
+
+    int rawW = maxX - minX;
+    int rawH = maxY - minY;
+
+    int marginX = (int)(rawW * ICON_MARGIN_RATIO);
+    int marginY = (int)(rawH * ICON_MARGIN_RATIO);
+
+    RECT finalRect;
+    finalRect.left   = (minX - marginX < 0) ? 0 : minX - marginX;
+    finalRect.top    = (minY - marginY < 0) ? 0 : minY - marginY;
+    finalRect.right  = (maxX + marginX > bm.bmWidth)  ? bm.bmWidth  : maxX + marginX;
+    finalRect.bottom = (maxY + marginY > bm.bmHeight) ? bm.bmHeight : maxY + marginY;
+
+    return finalRect;
 }
 
 static BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) {
@@ -151,6 +228,7 @@ static BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) {
         WindowEntry entry;
         entry.hwnd = hwnd;
         entry.hIcon = NULL;
+        entry.contentRect = {0, 0, 0, 0};
         char title[256];
         GetWindowTextA(hwnd, title, sizeof(title));
         entry.title = title;
@@ -189,6 +267,7 @@ static BOOL CALLBACK EnumAllWindowsProc(HWND hwnd, LPARAM lParam) {
         WindowEntry entry;
         entry.hwnd = hwnd;
         entry.hIcon = GetHighResIcon(hwnd);
+        entry.contentRect = GetIconContentRect(entry.hIcon);
         char title[256];
         GetWindowTextA(hwnd, title, sizeof(title));
         entry.title = title;
@@ -217,11 +296,42 @@ static LRESULT CALLBACK SwitcherWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPAR
                     for (size_t i = 0; i < sessionWindows.size(); ++i) {
                         RECT r = GetThumbRect(cachedLayout, i, sessionWindows.size());
                         HICON hIcon = sessionWindows[i].hIcon;
+                        RECT contentRect = sessionWindows[i].contentRect;
                         if (hIcon) {
                             int iconSize = (int)(cachedLayout.thumbH * 0.65);
                             int x = r.left + (cachedLayout.thumbW - iconSize) / 2;
                             int y = r.top + (cachedLayout.thumbH - iconSize) / 2;
-                            DrawIconEx(hdc, x, y, hIcon, iconSize, iconSize, 0, NULL, DI_NORMAL);
+                            
+                            int contentW = contentRect.right - contentRect.left;
+                            int contentH = contentRect.bottom - contentRect.top;
+
+                            static const int CROP_THRESHOLD = (int)(256 * (1.0f - ICON_MARGIN_RATIO));
+
+                            if (contentW > 0 && contentH > 0 && contentW < CROP_THRESHOLD) {
+                                HDC hMemDC = CreateCompatibleDC(hdc);
+                                HBITMAP hMemBmp = CreateCompatibleBitmap(hdc, 256, 256); 
+                                HGDIOBJ oldBmp = SelectObject(hMemDC, hMemBmp);
+
+                                RECT memRect = {0, 0, 256, 256};
+                                FillRect(hMemDC, &memRect, hSwitcherBackBrush);
+
+                                DrawIconEx(hMemDC, 0, 0, hIcon, 256, 256, 0, NULL, DI_NORMAL);
+
+                                StretchBlt(
+                                    hdc,
+                                    x, y, iconSize, iconSize,
+                                    hMemDC,
+                                    contentRect.left, contentRect.top,
+                                    contentW, contentH,
+                                    SRCCOPY
+                                );
+
+                                SelectObject(hMemDC, oldBmp);
+                                DeleteObject(hMemBmp);
+                                DeleteDC(hMemDC);
+                            } else {                            
+                                DrawIconEx(hdc, x, y, hIcon, iconSize, iconSize, 0, NULL, DI_NORMAL);
+                            }
                         }
                     }
                 }
@@ -252,7 +362,7 @@ static void CreateSwitcherUI() {
     if (hSwitcherWindow) return;
 
     if (!classRegistered) {
-        hSwitcherBackBrush = CreateSolidBrush(RGB(25, 25, 25));
+        hSwitcherBackBrush = CreateSolidBrush(THEME_BG_COLOR);
         
         WNDCLASSA wndClass {};
         wndClass.lpfnWndProc   = SwitcherWndProc;
