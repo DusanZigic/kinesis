@@ -16,6 +16,7 @@ $LDLibs = @(
     "-lpsapi",
     "-lshell32",
     "-lole32",
+    "-loleaut32",
     "-lshlwapi",
     "-luuid",
     "-pthread",

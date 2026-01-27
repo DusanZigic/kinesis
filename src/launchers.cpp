@@ -328,46 +328,99 @@ static std::string ResolveWSLPath(const std::string& windowsPath, const std::str
     return "/";
 }
 
+static bool LaunchDeElevated(const std::string& path, const std::string& args, bool hide) {
+    IShellWindows* psw = NULL;
+    HRESULT hr = CoCreateInstance(CLSID_ShellWindows, NULL, CLSCTX_LOCAL_SERVER, IID_IShellWindows, (void**)&psw);
+    if (FAILED(hr)) return false;
+
+    HWND hwnd = 0;
+    IDispatch* pdisp = NULL;
+    VARIANT vEmpty;
+    VariantInit(&vEmpty);
+    VARIANT vDesktop;
+    VariantInit(&vDesktop);
+    vDesktop.vt = VT_I4;
+    vDesktop.lVal = CSIDL_DESKTOP;
+
+    hr = psw->FindWindowSW(&vDesktop, &vEmpty, SWC_DESKTOP, (long*)&hwnd, SWFO_NEEDDISPATCH, &pdisp);
+    psw->Release();
+    if (FAILED(hr) || !pdisp) return false;
+
+    IServiceProvider* psp = NULL;
+    hr = pdisp->QueryInterface(IID_IServiceProvider, (void**)&psp);
+    pdisp->Release();
+    if (FAILED(hr)) return false;
+
+    IShellBrowser* psb = NULL;
+    hr = psp->QueryService(SID_STopLevelBrowser, IID_IShellBrowser, (void**)&psb);
+    psp->Release();
+    if (FAILED(hr)) return false;
+
+    IShellView* psv = NULL;
+    hr = psb->QueryActiveShellView(&psv);
+    psb->Release();
+    if (FAILED(hr)) return false;
+
+    IDispatch* pdispView = NULL;
+    hr = psv->GetItemObject(SVGIO_BACKGROUND, IID_IDispatch, (void**)&pdispView);
+    psv->Release();
+    if (FAILED(hr)) return false;
+
+    IShellFolderViewDual* psfvd = NULL;
+    hr = pdispView->QueryInterface(IID_IShellFolderViewDual, (void**)&psfvd);
+    pdispView->Release();
+    if (FAILED(hr)) return false;
+
+    IDispatch* pdispApp = NULL;
+    hr = psfvd->get_Application(&pdispApp);
+    psfvd->Release();
+    if (FAILED(hr)) return false;
+
+    IShellDispatch2* psd = NULL;
+    hr = pdispApp->QueryInterface(IID_IShellDispatch2, (void**)&psd);
+    pdispApp->Release();
+    if (FAILED(hr)) return false;
+
+    BSTR bstrPath = SysAllocString(std::wstring(path.begin(), path.end()).c_str());
+    VARIANT vArgs;
+    VariantInit(&vArgs);
+    vArgs.vt = VT_BSTR;
+    vArgs.bstrVal = SysAllocString(std::wstring(args.begin(), args.end()).c_str());
+    
+    VARIANT vVerb, vDir, vShow;
+    VariantInit(&vVerb);
+    VariantInit(&vDir);
+    VariantInit(&vShow);
+    vShow.vt = VT_I4;
+    vShow.lVal = hide ? SW_HIDE : SW_SHOWNORMAL;
+
+    hr = psd->ShellExecute(bstrPath, vArgs, vDir, vVerb, vShow);
+
+    SysFreeString(bstrPath);
+    VariantClear(&vArgs);
+    psd->Release();
+
+    return SUCCEEDED(hr);
+}
+
 static void ExecuteLaunch(int selected) {
     std::string path = currentMatches[selected];
     AddToHistory(path);
 
     if (activeCtx->type == LauncherMode::VSCode) {
-        SetEnvironmentVariableA("ELECTRON_RUN_AS_NODE", "1");
-        std::string cmd = "\"" + activeCtx->executablePath + "\" \"" + activeCtx->cliPath + "\" \"" + path + "\"";
-        std::vector<char> cmdBuffer(cmd.begin(), cmd.end());
-        cmdBuffer.push_back('\0');
-        STARTUPINFOA si {};
-        si.cb = sizeof(si);
-        si.dwFlags = STARTF_USESHOWWINDOW;
-        si.wShowWindow = SW_HIDE;
-        PROCESS_INFORMATION pi;
-        if (CreateProcessA(activeCtx->executablePath.c_str(), cmdBuffer.data(), NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
-            CloseHandle(pi.hProcess);
-            CloseHandle(pi.hThread);
-        }
-        SetEnvironmentVariableA("ELECTRON_RUN_AS_NODE", NULL);
+        std::string fullArgs =
+            "/c \"set ELECTRON_RUN_AS_NODE=1 && \"" + 
+            activeCtx->executablePath + "\" \"" + 
+            activeCtx->cliPath + "\" \"" + path + "\"\"";
+        LaunchDeElevated("cmd.exe", fullArgs, true);        
     
     } else if (activeCtx->type == LauncherMode::WSL) {
         std::string distroName = ExtractDistroFromPath(path);
         std::string linuxPath = ResolveWSLPath(path, distroName);
-        std::string cmdLine = "wsl.exe";
-        if (!distroName.empty()) {
-            cmdLine += " -d " + distroName;
-        }   
-        cmdLine += " --cd \"" + linuxPath + "\"";
-        std::vector<char> cmdBuffer(cmdLine.begin(), cmdLine.end());
-        cmdBuffer.push_back('\0');
-        
-        STARTUPINFOA si = {};
-        si.cb = sizeof(si);
-        si.dwFlags = STARTF_USESHOWWINDOW;
-        si.wShowWindow = SW_SHOW;
-        PROCESS_INFORMATION pi {};
-        if (CreateProcessA(activeCtx->executablePath.c_str(), cmdBuffer.data(), NULL, NULL, FALSE, CREATE_NEW_CONSOLE, NULL, NULL, &si, &pi)) {
-            CloseHandle(pi.hProcess);
-            CloseHandle(pi.hThread);
-        }
+        std::string wslArgs = "";
+        if (!distroName.empty()) wslArgs += "-d " + distroName + " ";
+        wslArgs += "--cd \"" + linuxPath + "\"";
+        LaunchDeElevated("wsl.exe", wslArgs, false);
     }
 }
 
