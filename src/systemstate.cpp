@@ -59,54 +59,77 @@ namespace SystemState {
         return std::string(szPath);
     }
 
-    void SyncSystemState() {
-        bool startup = GetRegBool("OnStartup");
-        bool admin = GetRegBool("RunAsAdmin");
-
-        char szPath[MAX_PATH];
-        GetModuleFileNameA(NULL, szPath, MAX_PATH);
-        
-        std::string currentPath(szPath);
-        if (GetRegString("LastKnownPath") != currentPath) {
-            SetRegString("LastKnownPath", szPath);
+    bool IsAppRunningAsAdmin() {
+        bool isAdmin = false;
+        HANDLE hToken = NULL;
+        if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken)) {
+            TOKEN_ELEVATION elevation;
+            DWORD dwSize;
+            if (GetTokenInformation(hToken, TokenElevation, &elevation, sizeof(elevation), &dwSize)) {
+                isAdmin = (elevation.TokenIsElevated != 0);
+            }
         }
+        if (hToken) CloseHandle(hToken);
+        return isAdmin;
+    }
 
-        std::string escapedPath = "\\\"" + currentPath + "\\\"";
-
-        HKEY hRunKey;
-        if (RegOpenKeyExA(HKEY_CURRENT_USER, RUN_KEY, 0, KEY_WRITE, &hRunKey) == ERROR_SUCCESS) {
-            RegDeleteValueA(hRunKey, APP_NAME);
-            RegCloseKey(hRunKey);
+    void DisableAllStartup() {
+        HKEY hKey;
+        if (RegOpenKeyExA(HKEY_CURRENT_USER, RUN_KEY, 0, KEY_SET_VALUE, &hKey) == ERROR_SUCCESS) {
+            RegDeleteValueA(hKey, APP_NAME);
+            RegCloseKey(hKey);
         }
 
         std::string delCmd = "/delete /tn \"" + std::string(APP_NAME) + "\" /f";
         ShellExecuteA(NULL, "open", "schtasks.exe", delCmd.c_str(), NULL, SW_HIDE);
+    }
 
-        if (startup) {
-            if (admin) {
-                std::string addCmd = "/create /tn \"" + std::string(APP_NAME) + "\" /tr " + escapedPath + " /sc onlogon /rl highest /f";
-                ShellExecuteA(NULL, "open", "schtasks.exe", addCmd.c_str(), NULL, SW_HIDE);
+    void EnableAdminStartup(const std::string& fullPath) {
+        DisableAllStartup();
 
-                if (RegOpenKeyExA(HKEY_CURRENT_USER, RUN_KEY, 0, KEY_SET_VALUE, &hRunKey) == ERROR_SUCCESS) {
-                    RegDeleteValueA(hRunKey, APP_NAME);
-                    RegCloseKey(hRunKey);
-                }
+        std::string psCommand = 
+            "schtasks /create /tn '" + std::string(APP_NAME) + "' /tr \"\\\"" + fullPath + "\\\"\" /sc onlogon /rl highest /f; " +
+            "$t = Get-ScheduledTask -TaskName '" + std::string(APP_NAME) + "'; " +
+            "$t.Settings.DisallowStartIfOnBatteries = $false; " +
+            "$t.Settings.StopIfGoingOnBatteries = $false; " +
+            "Set-ScheduledTask -InputObject $t";
+        
+        std::string finalArgs = "-NoProfile -ExecutionPolicy Bypass -Command \"" + psCommand + "\"";
+
+        ShellExecuteA(NULL, "open", "powershell.exe", finalArgs.c_str(), NULL, SW_HIDE);
+    }
+
+    void EnableStandardStartup(const std::string& fullPath) {
+        DisableAllStartup();
+        
+        HKEY hKey;
+        if (RegOpenKeyExA(HKEY_CURRENT_USER, RUN_KEY, 0, KEY_WRITE, &hKey) == ERROR_SUCCESS) {
+            RegSetValueExA(hKey, APP_NAME, 0, REG_SZ, (const BYTE*)fullPath.c_str(), (DWORD)fullPath.length() + 1);
+            RegCloseKey(hKey);
+        }
+    }
+
+    void SyncSystemState() {
+        bool onStartup = GetRegBool("OnStartup");
+        bool asAdmin   = GetRegBool("RunAsAdmin");
+        bool currentlyIsAdmin = IsAppRunningAsAdmin();
+
+        char szPath[MAX_PATH];
+        GetModuleFileNameA(NULL, szPath, MAX_PATH);
+        std::string currentPath(szPath);
+
+        if (GetRegString("LastKnownPath") != currentPath) {
+            SetRegString("LastKnownPath", currentPath.c_str());
+        }
+
+        if (onStartup) {
+            if (asAdmin && currentlyIsAdmin) {
+                EnableAdminStartup(currentPath);
             } else {
-                if (RegOpenKeyExA(HKEY_CURRENT_USER, RUN_KEY, 0, KEY_WRITE, &hRunKey) == ERROR_SUCCESS) {
-                    RegSetValueExA(hRunKey, APP_NAME, 0, REG_SZ, (const BYTE*)szPath, (DWORD)strlen(szPath) + 1);
-                    RegCloseKey(hRunKey);
-                }
-
-                std::string delCmd = "/delete /tn \"" + std::string(APP_NAME) + "\" /f";
-                ShellExecuteA(NULL, "open", "schtasks.exe", delCmd.c_str(), NULL, SW_HIDE);
+                EnableStandardStartup(currentPath);
             }
         } else {
-            if (RegOpenKeyExA(HKEY_CURRENT_USER, RUN_KEY, 0, KEY_SET_VALUE, &hRunKey) == ERROR_SUCCESS) {
-                RegDeleteValueA(hRunKey, APP_NAME);
-                RegCloseKey(hRunKey);
-            }
-            std::string delCmd = "/delete /tn \"" + std::string(APP_NAME) + "\" /f";
-            ShellExecuteA(NULL, "open", "schtasks.exe", delCmd.c_str(), NULL, SW_HIDE);
+            DisableAllStartup();
         }
     }
 
