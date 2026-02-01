@@ -838,7 +838,7 @@ void ShowLauncher(LauncherMode mode) {
     int winY = (screenH - winH) / 3;
 
     hLauncherWindow = CreateWindowExA(
-        WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
+        WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
         "KinesisLauncher",
         NULL,
         WS_POPUP | WS_VISIBLE,
@@ -917,7 +917,7 @@ void ShowLauncher(LauncherMode mode) {
     AllowSetForegroundWindow(ASFW_ANY);
     keybd_event(0xFC, 0, 0, 0);
     keybd_event(0xFC, 0, KEYEVENTF_KEYUP, 0);
-    ShowWindow(hLauncherWindow, SW_SHOW);
+    SmoothShowWindow(hLauncherWindow);
     SetForegroundWindow(hLauncherWindow);
     SetActiveWindow(hLauncherWindow);
     if (!activeCtx->isEngineFound) {

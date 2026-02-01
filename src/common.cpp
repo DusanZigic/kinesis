@@ -41,3 +41,15 @@ std::string GetKnownFolderPath(REFKNOWNFOLDERID rfid) {
     }
     return path;
 }
+
+void SmoothShowWindow(HWND hwnd) {
+    SetLayeredWindowAttributes(hwnd, 0, 0, LWA_ALPHA);
+    ShowWindow(hwnd, SW_SHOW);
+    RedrawWindow(hwnd, NULL, NULL, RDW_UPDATENOW | RDW_ALLCHILDREN | RDW_FRAME);
+    for (int i=0; i<=255; i+=51) {
+        SetLayeredWindowAttributes(hwnd, 0, (BYTE)i, LWA_ALPHA);
+        UpdateWindow(hwnd);
+        Sleep(10);
+    }
+    SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
+}

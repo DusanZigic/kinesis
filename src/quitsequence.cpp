@@ -118,7 +118,7 @@ void InitiateQuitSequence() {
     }
 
     hQuitDlg = CreateWindowExA(
-        WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
+        WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
         "QuitDialogClass",
         NULL,
         WS_POPUP | WS_BORDER,
@@ -135,7 +135,7 @@ void InitiateQuitSequence() {
     AllowSetForegroundWindow(ASFW_ANY);
     keybd_event(0xFC, 0, 0, 0);
     keybd_event(0xFC, 0, KEYEVENTF_KEYUP, 0);
-    ShowWindow(hQuitDlg, SW_SHOW);
+    SmoothShowWindow(hQuitDlg);
     SetForegroundWindow(hQuitDlg);
     SetActiveWindow(hQuitDlg);
     SetFocus(hQuitDlg);
