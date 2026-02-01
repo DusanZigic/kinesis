@@ -142,7 +142,16 @@ int main() {
 
     HHOOK hhkLowLevelKybd = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, GetModuleHandle(NULL), 0);
     if (hhkLowLevelKybd == NULL) {
-        std::cerr << "failed to install hook" << std::endl;
+        DWORD errorCode = GetLastError();
+        if (errorCode == ERROR_ACCESS_DENIED) {
+            std::wstring errorMsg = L"Access Denied. Please try running as Administrator.";
+            MessageBoxW(NULL, errorMsg.c_str(), L"Kinesis - Permission Error", MB_OK | MB_ICONSTOP | MB_TOPMOST);
+        } else {
+            std::wstring errorMsg = L"Critical Error: Failed to install keyboard hook.\n\n"
+                                    L"Error Code: " + std::to_wstring(errorCode) + L"\n"
+                                    L"The application will now exit.";
+            MessageBoxW(NULL, errorMsg.c_str(), L"Kinesis - System Error", MB_OK | MB_ICONERROR | MB_TOPMOST);
+        }
         return 1;
     }
 
