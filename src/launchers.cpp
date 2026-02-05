@@ -44,15 +44,64 @@ static void FindVSCode(LauncherContext& launcherCtx) {
     };
     for (const auto& base : searchBases) {
         if (base.length() < 5) continue;
+        
         fs::path rootPath(base);
-        fs::path exePath = rootPath / "Code.exe";
-        fs::path cliPath = rootPath / "resources" / "app" / "out" / "cli.js";
-        if (fs::exists(exePath) && fs::exists(cliPath)) {
-            launcherCtx.executablePath = exePath.u8string();
-            launcherCtx.cliPath = cliPath.u8string();
-            launcherCtx.isEngineFound = true;
-            return;
+        if (!fs::exists(rootPath)) continue;
+
+        fs::path cmdPath;
+        for (auto it = fs::recursive_directory_iterator(rootPath); it != fs::recursive_directory_iterator(); ++it) {
+            if (it.depth() > 3) {
+                it.pop();
+                if (it == fs::recursive_directory_iterator()) break;
+                continue;
+            }
+            if (it->path().filename() == "code.cmd") {
+                cmdPath = it->path();
+                break;
+            }
         }
+        if (cmdPath.empty() || !fs::exists(cmdPath)) continue;
+
+        std::ifstream file(cmdPath);
+        if (!file.is_open()) continue;
+
+        fs::path scriptDir = cmdPath.parent_path();
+
+        std::string line;
+        while (std::getline(file, line)) {
+            if (line.find("Code.exe") != std::string::npos && line.find("cli.js") != std::string::npos) {
+                size_t exeOpen = line.find('"');
+                size_t exeClose = line.find('"', exeOpen + 1);
+                size_t cliOpen = line.find('"', exeClose + 1);
+                size_t cliClose = line.find('"', cliOpen + 1);
+
+                if (exeOpen != std::string::npos && exeClose != std::string::npos &&
+                    cliOpen != std::string::npos && cliClose != std::string::npos) {
+                    
+                    std::string exeRaw = line.substr(exeOpen + 1, exeClose - exeOpen - 1);
+                    std::string cliRaw = line.substr(cliOpen + 1, cliClose - cliOpen - 1);
+
+                    auto ResolveRelative = [&](std::string p) {
+                        if (p.find("%~dp0") == 0) {
+                            p.replace(0, 5, "");
+                            return (scriptDir / p).lexically_normal();
+                        }
+                        return fs::path(p);
+                    };
+
+                    fs::path exePath = ResolveRelative(exeRaw);
+                    fs::path cliPath = ResolveRelative(cliRaw);
+
+                    if (fs::exists(exePath) && fs::exists(cliPath)) {
+                        launcherCtx.executablePath = exePath.u8string();
+                        launcherCtx.cliPath = cliPath.u8string();
+                        launcherCtx.isEngineFound = true;
+                        return;
+                    }
+                }
+            }
+        }
+        file.close();
     }
     launcherCtx.isEngineFound = false;
 }
