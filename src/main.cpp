@@ -5,6 +5,7 @@
 #include "launchers.hpp"
 #include "quitsequence.hpp"
 #include "config.hpp"
+#include "configui.hpp"
 #include "systemstate.hpp"
 
 LRESULT CALLBACK GhostWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
@@ -53,6 +54,10 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
                 }
                 if (Config::enableWSLTerminalLauncher && pKeyBoard->vkCode == Config::WSLTerminalLauncherKey) {
                     ShowLauncher(LauncherMode::WSL);
+                    return 1;
+                }
+                if (pKeyBoard->vkCode == 'C') {
+                    ConfigUI::OpenConfigUI();
                     return 1;
                 }
                 if (pKeyBoard->vkCode == 'Q') {
