@@ -1,6 +1,7 @@
 #include "common.hpp"
 #include "config.hpp"
 #include "systemstate.hpp"
+#include "configui.hpp"
 #include "trayicon.hpp"
 
 #define ID_TRAY_APP_ICON 1001
@@ -47,8 +48,9 @@ void ShowTrayMenu(HWND hGhostWnd) {
         AppendMenuA(hMenu, MF_STRING | (isOnStartup ? MF_CHECKED : MF_UNCHECKED), ID_STARTUP_TOGGLE, "On Startup");
         AppendMenuA(hMenu, MF_STRING | (isAdminRun  ? MF_CHECKED : MF_UNCHECKED), ID_ADMIN_TOGGLE,   "As Admin");
         AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
-        AppendMenuA(hMenu, MF_STRING,    ID_EDIT_CONFIG,    "Edit Configuration");
-        AppendMenuA(hMenu, MF_STRING,    ID_RELOAD_CONFIG,  "Reload Configuration");
+        AppendMenuA(hMenu, MF_STRING,    ID_OPEN_CONFIG_UI, "Open Configuration UI");
+        AppendMenuA(hMenu, MF_STRING,    ID_EDIT_CONFIG,    "Edit Configuration File");
+        AppendMenuA(hMenu, MF_STRING,    ID_RELOAD_CONFIG,  "Reload Configuration File");
         AppendMenuA(hMenu, MF_STRING,    ID_DEFAULT_CONFIG, "Restore Configuration Defaults");
         AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
         AppendMenuA(hMenu, MF_STRING,    ID_EXIT, "Quit Kinesis");
@@ -66,6 +68,9 @@ void ShowTrayMenu(HWND hGhostWnd) {
                 break;
             case ID_ADMIN_TOGGLE:
                 SystemState::SetRunAsAdmin(!isAdminRun);
+                break;
+            case ID_OPEN_CONFIG_UI:
+                ConfigUI::OpenConfigUI();
                 break;
             case ID_EDIT_CONFIG:
                 Config::OpenConfig();
