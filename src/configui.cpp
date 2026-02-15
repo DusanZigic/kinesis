@@ -176,18 +176,19 @@ namespace ConfigUI {
         Gdiplus::Graphics graphics(hdc);
         graphics.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
         graphics.SetTextRenderingHint(Gdiplus::TextRenderingHintClearTypeGridFit);
-
+        
         RECT clientRect;
         GetClientRect(hWnd, &clientRect);
-        int width  = clientRect.right  - clientRect.left;
-        int height = clientRect.bottom - clientRect.top;
+        int width  = clientRect.right;
+        int height = clientRect.bottom;
 
-        Gdiplus::SolidBrush bgBrush(COL_BG);
-        graphics.FillRectangle(&bgBrush, 0, 0, width, height);
-
+        graphics.Clear(COL_BG);
+        
         clickZones.clear();
 
-        int yOffset = layoutMetrics.headerSpacing;
+        int footerHeight = (int)(70 * layoutMetrics.scale);
+        int scrollY = GetScrollPos(hWnd, SB_VERT);
+        int yOffset = layoutMetrics.headerSpacing - scrollY;
 
         AddToggleRow(graphics, "Enable Task Switcher", yOffset, &Config::enableTaskSwitcher);
         AddBindingRow(graphics, "All Apps Shortcut", yOffset, &Config::allAppsSwitcherMod, &Config::allAppsSwitcherKey);
@@ -207,7 +208,6 @@ namespace ConfigUI {
         AddDescription(graphics, "Select apps to enable tab switching:", yOffset);
         int startX = layoutMetrics.paddingX + (int)(10 * layoutMetrics.scale);
         int currentX = startX;
-        int columnWidth = (int)(180 * layoutMetrics.scale);
         for (size_t i = 0; i < Config::DEFAULT_TAB_APPS.size(); ++i) {
             if (i > 0 && i % 2 == 0) {
                 yOffset += layoutMetrics.rowHeight;
@@ -217,6 +217,14 @@ namespace ConfigUI {
             currentX += (int)(200 * layoutMetrics.scale);
         }
         yOffset += layoutMetrics.rowHeight;
+
+        int footerTop = height - footerHeight;
+
+        Gdiplus::Pen sepPen(Gdiplus::Color(50, 50, 50), 1.0f);
+        graphics.DrawLine(&sepPen, 0, footerTop, width, footerTop);
+
+        Gdiplus::SolidBrush footerBg(COL_BG); 
+        graphics.FillRectangle(&footerBg, 0, footerTop + 1, width, footerHeight);
     }
 
     LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
@@ -294,6 +302,20 @@ namespace ConfigUI {
                 }
                 break;
             }
+            case WM_NCHITTEST: {
+                LRESULT hit = DefWindowProc(hWnd, msg, wParam, lParam);
+                if (hit == HTCLIENT) {
+                    POINT pt;
+                    pt.x = LOWORD(lParam);
+                    pt.y = HIWORD(lParam);
+                    ScreenToClient(hWnd, &pt);
+                    if (pt.y < 40) return HTCAPTION;
+                }
+                return hit;
+            }
+            case WM_ERASEBKGND: {
+                return 1;
+            }
         }
         return DefWindowProc(hWnd, msg, wParam, lParam);
     }
@@ -318,10 +340,10 @@ namespace ConfigUI {
         UpdateFonts();
 
         hConfigWindow = CreateWindowExA(
-            WS_EX_TOPMOST,
+            WS_EX_APPWINDOW | WS_EX_LAYERED,
             szClassName,
-            "Kinesis Settings",
-            WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU,
+            "Kinesis Configuration",
+            WS_POPUP | WS_VISIBLE | WS_SYSMENU,
             layoutMetrics.windowX, layoutMetrics.windowY,
             layoutMetrics.windowW, layoutMetrics.windowH,
             NULL, NULL,
@@ -329,9 +351,17 @@ namespace ConfigUI {
             NULL
         );
 
+        int cornerRadius = layoutMetrics.windowH * 0.06;
+        HRGN hConfigRgn = CreateRoundRectRgn(0, 0, layoutMetrics.windowW, layoutMetrics.windowH, cornerRadius, cornerRadius);
+        SetWindowRgn(hConfigWindow, hConfigRgn, TRUE);
+
         if (hConfigWindow) {
-            ShowWindow(hConfigWindow, SW_SHOW);
-            UpdateWindow(hConfigWindow);
+            AllowSetForegroundWindow(ASFW_ANY);
+            keybd_event(0xFC, 0, 0, 0);
+            keybd_event(0xFC, 0, KEYEVENTF_KEYUP, 0);
+            SmoothShowWindow(hConfigWindow);
+            SetForegroundWindow(hConfigWindow);
+            SetActiveWindow(hConfigWindow);
             return;
         }
     }
