@@ -7,7 +7,7 @@ namespace ConfigUI {
         int paddingX;
         int columnX;
         int upperMargin, rowHeight, headerSpacing, sectionSpacing;
-        int fontSizeHeader, fontSizeLabel, fontSizeKeyBinding;
+        int fontSizeHeader, fontSizeLabel, fontSizeKeyBinding, fontSizeDescription;
         
         int toggleW, toggleH;
         int keyBoxW, keyBoxH;
@@ -16,20 +16,23 @@ namespace ConfigUI {
     };
 
     struct FontAssets {
-        Gdiplus::Font* headerFont     = nullptr;
-        Gdiplus::Font* labelFont      = nullptr;
-        Gdiplus::Font* keyBindingFont = nullptr;
+        Gdiplus::Font* headerFont      = nullptr;
+        Gdiplus::Font* labelFont       = nullptr;
+        Gdiplus::Font* keyBindingFont  = nullptr;
+        Gdiplus::Font* descriptionFont = nullptr;
         
         void Release() {
-            delete labelFont;      labelFont      = nullptr;
-            delete headerFont;     headerFont     = nullptr;
-            delete keyBindingFont; keyBindingFont = nullptr;
+            delete labelFont;       labelFont       = nullptr;
+            delete headerFont;      headerFont      = nullptr;
+            delete keyBindingFont;  keyBindingFont  = nullptr;
+            delete descriptionFont; descriptionFont = nullptr;
         }
     };
 
     enum ControlType {
         TOGGLE,
-        KEYBOX
+        KEYBOX,
+        CHECKBOX,
     };
 
     struct ClickZone {
