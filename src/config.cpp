@@ -4,6 +4,10 @@
 namespace fs = std::filesystem;
 
 namespace Config {
+    const std::vector<std::string> DEFAULT_TAB_APPS = {
+        "chrome.exe", "msedge.exe", "firefox.exe", 
+        "explorer.exe", "WindowsTerminal.exe"
+    };
     bool enableTabSwitcher;
     std::set<std::string> tabbedApps;
 
@@ -22,11 +26,9 @@ namespace Config {
     void ApplyHardcodedDefaults() {
         enableTabSwitcher = true;
         tabbedApps.clear();
-        tabbedApps.insert("chrome.exe");
-        tabbedApps.insert("msedge.exe");
-        tabbedApps.insert("firefox.exe");
-        tabbedApps.insert("explorer.exe");
-        tabbedApps.insert("WindowsTerminal.exe");
+        for (const auto& app : DEFAULT_TAB_APPS) {
+            tabbedApps.insert(app);
+        }
         
         enableVSCodeLauncher = true;
         VSCodeLauncherKey = 'V';

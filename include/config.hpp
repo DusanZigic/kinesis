@@ -1,6 +1,7 @@
 #pragma once
 
 namespace Config {
+    extern const std::vector<std::string> DEFAULT_TAB_APPS;
     extern bool enableTabSwitcher;
     extern std::set<std::string> tabbedApps;
 
