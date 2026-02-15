@@ -12,6 +12,7 @@ namespace ConfigUI {
     static const Gdiplus::Color COL_SUBTEXT(255, 150, 150, 150);
 
     static LayoutMetrics layoutMetrics;
+    static FontAssets fontAssets;
 
     static std::vector<ClickZone> clickZones;
 
@@ -46,6 +47,13 @@ namespace ConfigUI {
         layoutMetrics.fontSizeKeyBinding = (int)(10 * layoutMetrics.scale);
     }
 
+    static void UpdateFonts() {
+        fontAssets.Release();
+        fontAssets.labelFont      = new Gdiplus::Font(L"Segoe UI", (float)layoutMetrics.fontSizeLabel);
+        fontAssets.headerFont     = new Gdiplus::Font(L"Segoe UI", (float)layoutMetrics.fontSizeHeader,     Gdiplus::FontStyleBold);
+        fontAssets.keyBindingFont = new Gdiplus::Font(L"Consolas", (float)layoutMetrics.fontSizeKeyBinding, Gdiplus::FontStyleBold);
+    }
+
     static void DrawToggle(Gdiplus::Graphics& graphics, int x, int y, bool enabled) {
         Gdiplus::SmoothingMode prevMode = graphics.GetSmoothingMode();
         graphics.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
@@ -68,7 +76,6 @@ namespace ConfigUI {
     }
 
     static void DrawKeyBox(Gdiplus::Graphics& graphics, int x, int y, unsigned int vkCode, bool isRecording) {
-        Gdiplus::Font keyBindingFont(L"Consolas", (float)layoutMetrics.fontSizeKeyBinding, Gdiplus::FontStyleBold);
         Gdiplus::SolidBrush textBrush(COL_TEXT);
         Gdiplus::Pen borderPen(isRecording ? COL_ACCENT : Gdiplus::Color(80, 80, 80), (float)(1 * layoutMetrics.scale));
 
@@ -85,7 +92,7 @@ namespace ConfigUI {
         format.SetAlignment(Gdiplus::StringAlignmentCenter);
         format.SetLineAlignment(Gdiplus::StringAlignmentCenter);
         Gdiplus::RectF layoutRect((float)x, (float)y, (float)layoutMetrics.keyBoxW, (float)layoutMetrics.keyBoxH);
-        graphics.DrawString(wKey.c_str(), -1, &keyBindingFont, layoutRect, &format, &textBrush);
+        graphics.DrawString(wKey.c_str(), -1, fontAssets.keyBindingFont, layoutRect, &format, &textBrush);
     }
 
     static void RegisterZone(int x, int y, int w, int h, ControlType type, void* target) {
@@ -94,12 +101,11 @@ namespace ConfigUI {
     }
 
     static void AddPropertyRow(Gdiplus::Graphics& graphics, const std::string& label, int& yOffset,  bool* toggleTarget, unsigned int* keyTarget = nullptr) {
-        Gdiplus::Font font(L"Consolas", (float)layoutMetrics.fontSizeLabel);
         Gdiplus::SolidBrush textBrush(COL_TEXT);
 
         std::wstring wLabel(label.begin(), label.end());
         float textY = (float)yOffset + (layoutMetrics.rowHeight - layoutMetrics.fontSizeLabel) / 2.0f;
-        graphics.DrawString(wLabel.c_str(), -1, &font, Gdiplus::PointF((float)layoutMetrics.paddingX, textY), &textBrush);
+        graphics.DrawString(wLabel.c_str(), -1, fontAssets.labelFont, Gdiplus::PointF((float)layoutMetrics.paddingX, textY), &textBrush);
 
         int toggleY = yOffset + (layoutMetrics.rowHeight - layoutMetrics.toggleH) / 2;
         int keyBoxY = yOffset + (layoutMetrics.rowHeight - layoutMetrics.keyBoxH) / 2;
@@ -134,17 +140,16 @@ namespace ConfigUI {
         clickZones.clear();
 
         int yOffset = layoutMetrics.headerSpacing;
-        Gdiplus::Font headerFont(L"Consolas", layoutMetrics.fontSizeHeader, Gdiplus::FontStyleBold);
         Gdiplus::SolidBrush accentBrush(COL_ACCENT);
 
-        graphics.DrawString(L"SWITCHERS", -1, &headerFont, Gdiplus::PointF((float)layoutMetrics.paddingX, (float)yOffset), &accentBrush);
+        graphics.DrawString(L"SWITCHERS", -1, fontAssets.headerFont, Gdiplus::PointF((float)layoutMetrics.paddingX, (float)yOffset), &accentBrush);
         yOffset += layoutMetrics.headerSpacing;
         AddPropertyRow(graphics, "Enable Task Switcher", yOffset, &Config::enableTaskSwitcher);
         AddPropertyRow(graphics, "Enable Tab Switcher", yOffset, &Config::enableTabSwitcher);
 
         yOffset += layoutMetrics.sectionSpacing;
 
-        graphics.DrawString(L"LAUNCHERS", -1, &headerFont, Gdiplus::PointF((float)layoutMetrics.paddingX, (float)yOffset), &accentBrush);
+        graphics.DrawString(L"LAUNCHERS", -1, fontAssets.headerFont, Gdiplus::PointF((float)layoutMetrics.paddingX, (float)yOffset), &accentBrush);
         yOffset += layoutMetrics.headerSpacing;
         AddPropertyRow(graphics, "VS Code Launcher",      yOffset, &Config::enableVSCodeLauncher,      &Config::VSCodeLauncherKey);
         AddPropertyRow(graphics, "WSL Terminal Launcher", yOffset, &Config::enableWSLTerminalLauncher, &Config::WSLTerminalLauncherKey);
@@ -155,6 +160,10 @@ namespace ConfigUI {
             case WM_CLOSE: {
                 DestroyWindow(hWnd);
                 hConfigWindow = NULL;
+                return 0;
+            }
+            case WM_DESTROY: {
+                fontAssets.Release();
                 return 0;
             }
             case WM_PAINT: {
@@ -227,6 +236,7 @@ namespace ConfigUI {
         RegisterClassExA(&wc);
 
         UpdateLayoutMetrics();
+        UpdateFonts();
 
         hConfigWindow = CreateWindowExA(
             WS_EX_TOPMOST,

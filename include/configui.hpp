@@ -15,6 +15,18 @@ namespace ConfigUI {
         float scale;
     };
 
+    struct FontAssets {
+        Gdiplus::Font* headerFont     = nullptr;
+        Gdiplus::Font* labelFont      = nullptr;
+        Gdiplus::Font* keyBindingFont = nullptr;
+        
+        void Release() {
+            delete labelFont;      labelFont      = nullptr;
+            delete headerFont;     headerFont     = nullptr;
+            delete keyBindingFont; keyBindingFont = nullptr;
+        }
+    };
+
     enum ControlType {
         TOGGLE,
         KEYBOX
