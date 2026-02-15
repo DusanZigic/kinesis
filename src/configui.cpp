@@ -6,10 +6,14 @@ namespace ConfigUI {
     static HWND hConfigWindow = NULL;
     static const char* szClassName = "KinesisConfigWindow";
 
-    static const Gdiplus::Color COL_BG(255, 30, 30, 30);
-    static const Gdiplus::Color COL_ACCENT(255, 0, 120, 215);
-    static const Gdiplus::Color COL_TEXT(255, 240, 240, 240);
-    static const Gdiplus::Color COL_SUBTEXT(255, 150, 150, 150);
+    const Gdiplus::Color COL_BG(255, 30, 30, 30);
+    const Gdiplus::Color COL_SURFACE(255, 45, 45, 45);
+    const Gdiplus::Color COL_SELECTED(255, 200, 200, 200);
+    const Gdiplus::Color COL_HOVER(255, 70, 70, 70);
+    const Gdiplus::Color COL_TEXT_DIM(255, 160, 160, 160);
+    const Gdiplus::Color COL_TEXT_BRIGHT(255, 255, 255, 255);
+    const Gdiplus::Color COL_SEPARATOR(255, 50, 50, 50);
+    const Gdiplus::Color COL_EXIT_RED(255, 180, 50, 50);
 
     static LayoutMetrics layoutMetrics;
     static FontAssets fontAssets;
@@ -26,38 +30,42 @@ namespace ConfigUI {
         layoutMetrics.scale = 1.5f * (float)screenH / 1080.0f;
 
         layoutMetrics.windowH = (int)(screenH * 0.75f);
-        layoutMetrics.windowW = (int)(layoutMetrics.windowH * 0.8f);
+        layoutMetrics.windowW = (int)(layoutMetrics.windowH * 0.85f);
         layoutMetrics.windowY = (screenH - layoutMetrics.windowH) / 2;
         layoutMetrics.windowX = (screenW - layoutMetrics.windowW) / 2;
 
-        layoutMetrics.paddingX       = (int)(30 * layoutMetrics.scale);
-        layoutMetrics.columnX        = (int)(layoutMetrics.windowW * 0.65f);
+        layoutMetrics.paddingX = (int)(30 * layoutMetrics.scale);
 
-        layoutMetrics.upperMargin    = (int)(30 * layoutMetrics.scale);
-        layoutMetrics.headerSpacing  = (int)(40 * layoutMetrics.scale);
-        layoutMetrics.rowHeight      = (int)(40 * layoutMetrics.scale);
-        layoutMetrics.sectionSpacing = (int)(45 * layoutMetrics.scale);
+        layoutMetrics.upperMargin    = (int)(32 * layoutMetrics.scale);
+        layoutMetrics.rowHeight      = (int)(32 * layoutMetrics.scale);
+        layoutMetrics.sectionSpacing = (int)(37 * layoutMetrics.scale);
 
-        layoutMetrics.toggleW = (int)(44 * layoutMetrics.scale);
-        layoutMetrics.toggleH = (int)(22 * layoutMetrics.scale);
-        layoutMetrics.keyBoxW = (int)(35 * layoutMetrics.scale);
-        layoutMetrics.keyBoxH = (int)(28 * layoutMetrics.scale);
+        layoutMetrics.toggleW = (int)(34 * layoutMetrics.scale);
+        layoutMetrics.toggleH = (int)(14 * layoutMetrics.scale);
+        layoutMetrics.keyBoxW = (int)(36 * layoutMetrics.scale);
+        layoutMetrics.keyBoxH = (int)(20 * layoutMetrics.scale);
 
-        layoutMetrics.fontSizeHeader      = (int)(12 * layoutMetrics.scale);
+        int twoKeysWidth  = 2*layoutMetrics.keyBoxW + layoutMetrics.paddingX;
+        int reservedSpace = (twoKeysWidth > layoutMetrics.toggleW ? twoKeysWidth : layoutMetrics.toggleW) + (int)(20 * layoutMetrics.scale);
+        layoutMetrics.labelWidth = (float)(layoutMetrics.windowW - layoutMetrics.paddingX - reservedSpace - layoutMetrics.paddingX);
+
         layoutMetrics.fontSizeLabel       = (int)(11 * layoutMetrics.scale);
         layoutMetrics.fontSizeKeyBinding  = (int)(10 * layoutMetrics.scale);
+        layoutMetrics.fontSizeCheckBox    = (int)(10 * layoutMetrics.scale);
         layoutMetrics.fontSizeDescription = (int)( 9 * layoutMetrics.scale);
 
         layoutMetrics.footerHeight = (int)(60 * layoutMetrics.scale);
         layoutMetrics.footerTop    = layoutMetrics.windowH - layoutMetrics.footerHeight;
 
+        layoutMetrics.borderPenWidth    = 1.5f * (float)layoutMetrics.scale;
+        layoutMetrics.separatorPenWidth = 1.0f * (float)layoutMetrics.scale;
     }
 
     static void UpdateFonts() {
         fontAssets.Release();
         fontAssets.labelFont       = new Gdiplus::Font(L"Consolas", (float)layoutMetrics.fontSizeLabel);
-        fontAssets.headerFont      = new Gdiplus::Font(L"Consolas", (float)layoutMetrics.fontSizeHeader,      Gdiplus::FontStyleBold);
         fontAssets.keyBindingFont  = new Gdiplus::Font(L"Consolas", (float)layoutMetrics.fontSizeKeyBinding,  Gdiplus::FontStyleBold);
+        fontAssets.checkBoxFont    = new Gdiplus::Font(L"Consolas", (float)layoutMetrics.fontSizeCheckBox,    Gdiplus::FontStyleRegular);
         fontAssets.descriptionFont = new Gdiplus::Font(L"Consolas", (float)layoutMetrics.fontSizeDescription, Gdiplus::FontStyleRegular);
     }
 
@@ -70,20 +78,25 @@ namespace ConfigUI {
 
     static void DrawLabel(Gdiplus::Graphics& graphics, const std::string& text, int yOffset, int xPos = -1) {
         float finalX = (xPos == -1) ? (float)layoutMetrics.paddingX : (float)xPos;
-        float textY = (float)yOffset + (layoutMetrics.rowHeight - layoutMetrics.fontSizeLabel) / 2.0f;
-        Gdiplus::SolidBrush textBrush(COL_TEXT);
+        Gdiplus::SolidBrush textBrush(COL_TEXT_DIM);
         std::wstring wText(text.begin(), text.end());
-        graphics.DrawString(wText.c_str(), -1, fontAssets.labelFont, Gdiplus::PointF(finalX, textY), &textBrush);
+        Gdiplus::RectF layoutRect(finalX, (float)yOffset, layoutMetrics.labelWidth, (float)layoutMetrics.rowHeight);
+        Gdiplus::StringFormat format;
+        format.SetLineAlignment(Gdiplus::StringAlignmentCenter);
+        graphics.DrawString(wText.c_str(), -1, fontAssets.labelFont, layoutRect, &format, &textBrush);
     }
 
-    static void DrawToggle(Gdiplus::Graphics& graphics, int x, int y, bool enabled) {
+    static void DrawToggle(Gdiplus::Graphics& graphics, int yOffset, bool* target) {
         Gdiplus::SmoothingMode prevMode = graphics.GetSmoothingMode();
         graphics.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
 
         int w = layoutMetrics.toggleW;
         int h = layoutMetrics.toggleH;
+        int x = layoutMetrics.windowW - layoutMetrics.paddingX - w;
+        int y = yOffset + (layoutMetrics.rowHeight - h) / 2;
 
-        Gdiplus::SolidBrush bgBrush(enabled ? COL_ACCENT : Gdiplus::Color(100, 100, 100));
+        Gdiplus::Color trackCol = *target ? COL_SELECTED : COL_SURFACE;
+        Gdiplus::SolidBrush bgBrush(trackCol);
         graphics.FillPie(&bgBrush, x, y, h, h, 90, 180);
         graphics.FillPie(&bgBrush, x + w - h, y, h, h, 270, 180);
         graphics.FillRectangle(&bgBrush, x + h / 2, y, w - h, h);
@@ -91,16 +104,15 @@ namespace ConfigUI {
         Gdiplus::SolidBrush knobBrush(Gdiplus::Color::White);
         int margin = (int)(2 * layoutMetrics.scale);
         int knobSize = h - (margin * 2);
-        int knobX = enabled ? (x + w - h + margin) : (x + margin);
+        int knobX = *target ? (x + w - h + margin) : (x + margin);
         graphics.FillEllipse(&knobBrush, knobX, y + margin, knobSize, knobSize);
 
         graphics.SetSmoothingMode(prevMode);
+
+        RegisterZone(x, y, w, h, ControlType::TOGGLE, target);
     }
 
     static void DrawKeyBox(Gdiplus::Graphics& graphics, int x, int y, unsigned int vkCode, bool isRecording) {
-        Gdiplus::SolidBrush textBrush(COL_TEXT);
-        Gdiplus::Pen borderPen(isRecording ? COL_ACCENT : Gdiplus::Color(80, 80, 80), (float)(1 * layoutMetrics.scale));
-
         std::wstring wKey;
         if (vkCode == VK_MENU || vkCode == VK_LMENU || vkCode == VK_RMENU) wKey = L"ALT";
         else if (vkCode == VK_CONTROL || vkCode == VK_LCONTROL || vkCode == VK_RCONTROL) wKey = L"CTRL";
@@ -111,13 +123,54 @@ namespace ConfigUI {
         else if (vkCode >= 0x30 && vkCode <= 0x5A) wKey = (wchar_t)vkCode;
         else wKey = L"???";
 
+        Gdiplus::SolidBrush bgBrush(COL_SURFACE);
+        Gdiplus::Pen borderPen(isRecording ? COL_TEXT_BRIGHT : COL_HOVER, layoutMetrics.borderPenWidth);
         Gdiplus::Rect rect(x, y, layoutMetrics.keyBoxW, layoutMetrics.keyBoxH);
-        graphics.DrawRectangle(&borderPen, rect);
+        Gdiplus::GraphicsPath path;
+        float r = 6.0f * layoutMetrics.scale;
+        path.AddArc((float)rect.X, (float)rect.Y, r, r, 180, 90);
+        path.AddArc((float)rect.X + rect.Width - r, (float)rect.Y, r, r, 270, 90);
+        path.AddArc((float)rect.X + rect.Width - r, (float)rect.Y + rect.Height - r, r, r, 0, 90);
+        path.AddArc((float)rect.X, (float)rect.Y + rect.Height - r, r, r, 90, 90);
+        path.CloseFigure();
+        graphics.FillPath(&bgBrush, &path);
+        graphics.DrawPath(&borderPen, &path);
+
+        Gdiplus::SolidBrush textBrush(isRecording ? COL_TEXT_BRIGHT : COL_TEXT_DIM);
         Gdiplus::StringFormat format;
         format.SetAlignment(Gdiplus::StringAlignmentCenter);
         format.SetLineAlignment(Gdiplus::StringAlignmentCenter);
         Gdiplus::RectF layoutRect((float)x, (float)y, (float)layoutMetrics.keyBoxW, (float)layoutMetrics.keyBoxH);
         graphics.DrawString(wKey.c_str(), -1, fontAssets.keyBindingFont, layoutRect, &format, &textBrush);
+    }
+
+    static std::string GetAppDisplayName(const std::string& appName) {
+        auto it = Config::APP_NAMES.find(appName);
+        if (it != Config::APP_NAMES.end()) {
+            return it->second;
+        }
+
+        std::string displayName = appName;
+        size_t lastDot = appName.find_last_of(".");
+        if (lastDot != std::string::npos) {
+            displayName = displayName.substr(0, lastDot);
+        }
+        for (size_t i = 1; i < displayName.length(); ++i) {
+            if (isupper(displayName[i]) && !isspace(displayName[i-1])) {
+                displayName.insert(i, " ");
+                i++;
+            }
+        }
+
+        return displayName;
+}
+
+    static void DrawCheckBoxText(Gdiplus::Graphics& graphics, const std::string& text, int yOffset, int xPos) {
+        float finalX = (float)xPos;
+        float textY  = (float)yOffset + (layoutMetrics.rowHeight - layoutMetrics.fontSizeLabel) / 2.0f;
+        Gdiplus::SolidBrush textBrush(COL_TEXT_DIM);
+        std::wstring wText(text.begin(), text.end());
+        graphics.DrawString(wText.c_str(), -1, fontAssets.checkBoxFont, Gdiplus::PointF(finalX, textY), &textBrush);
     }
 
     static void AddAppCheckbox(Gdiplus::Graphics& graphics, const std::string& appName, int x, int y) {
@@ -127,7 +180,7 @@ namespace ConfigUI {
         int boxY = y + (layoutMetrics.rowHeight - boxSize) / 2;
     
         Gdiplus::Rect rect(x, boxY, boxSize, boxSize);
-        Gdiplus::Pen borderPen(isChecked ? COL_ACCENT : Gdiplus::Color(150, 150, 150), 1.5f);
+        Gdiplus::Pen borderPen(isChecked ? COL_TEXT_BRIGHT : COL_HOVER, layoutMetrics.borderPenWidth);
     
         Gdiplus::GraphicsPath path;
         float r = 4.0f * layoutMetrics.scale;
@@ -140,12 +193,13 @@ namespace ConfigUI {
         graphics.DrawPath(&borderPen, &path);
 
         if (isChecked) {
-            Gdiplus::SolidBrush accentBrush(COL_ACCENT);
+            Gdiplus::SolidBrush accentBrush(COL_SELECTED);
             graphics.FillPath(&accentBrush, &path); 
         }
 
         int textX = x + boxSize + (int)(8 * layoutMetrics.scale);
-        DrawLabel(graphics, appName, y, textX);
+        std::string displayName = GetAppDisplayName(appName);
+        DrawCheckBoxText(graphics, displayName, y, textX);
 
         int totalWidth = (int)(160 * layoutMetrics.scale); 
         RegisterZone(x, y, totalWidth, layoutMetrics.rowHeight, ControlType::CHECKBOX, (void*)&appName);
@@ -153,59 +207,51 @@ namespace ConfigUI {
 
     static void AddToggleRow(Gdiplus::Graphics& graphics, const std::string& label, int& yOffset, bool* target) {
         DrawLabel(graphics, label, yOffset);
-        DrawToggle(graphics, layoutMetrics.columnX, yOffset, *target);
-        RegisterZone(layoutMetrics.columnX, yOffset, layoutMetrics.toggleW, layoutMetrics.toggleH, ControlType::TOGGLE, target);
+        DrawToggle(graphics, yOffset, target);
         yOffset += layoutMetrics.rowHeight;
     }
 
     static void AddBindingRow(Gdiplus::Graphics& graphics, const std::string& label, int& yOffset, unsigned int* modTarget, unsigned int* keyTarget = nullptr) {
-        DrawLabel(graphics, label, yOffset);    
+        DrawLabel(graphics, label, yOffset);
 
-        int x = 0;
-        if (modTarget) {
-            x = layoutMetrics.columnX;
-            DrawKeyBox(graphics, x, yOffset, *modTarget, (currentlyRecording == modTarget));
-            RegisterZone(x, yOffset, layoutMetrics.keyBoxW, layoutMetrics.keyBoxH, ControlType::KEYBOX, modTarget);
-        }
-    
+        int margin = layoutMetrics.paddingX;
+        int boxW = layoutMetrics.keyBoxW;
+        int boxH = layoutMetrics.keyBoxH;
+        int x = layoutMetrics.windowW - margin - boxW;
+        int y = yOffset + (layoutMetrics.rowHeight - boxH) / 2;
+
         if (keyTarget) {
-            x += layoutMetrics.keyBoxW + (int)(10 * layoutMetrics.scale);
-            DrawLabel(graphics, "+", yOffset, x - 5);
-        
-            DrawKeyBox(graphics, x, yOffset, *keyTarget, (currentlyRecording == keyTarget));
-            RegisterZone(x, yOffset, layoutMetrics.keyBoxW, layoutMetrics.keyBoxH, ControlType::KEYBOX, keyTarget);
+            DrawKeyBox(graphics, x, y, *keyTarget, (currentlyRecording == keyTarget));
+            RegisterZone(x, y, boxW, boxH, ControlType::KEYBOX, keyTarget);
+
+            x -= (boxW + (int)(20 * layoutMetrics.scale));
+            DrawLabel(graphics, "+", yOffset, x + boxW + 5);
         }
-        
+
+        DrawKeyBox(graphics, x, y, *modTarget, (currentlyRecording == modTarget));
+        RegisterZone(x, y, boxW, boxH, ControlType::KEYBOX, modTarget);
+
         yOffset += layoutMetrics.rowHeight;
     }
 
-    static void AddDescription(Gdiplus::Graphics& g, const std::string& text, int& yOffset) {
-        Gdiplus::SolidBrush subBrush(COL_SUBTEXT);
+    static void AddCheckBoxRow(Gdiplus::Graphics& graphics, const std::string& label, int& yOffset) {
+        DrawLabel(graphics, label, yOffset);
+        yOffset += layoutMetrics.rowHeight;
+    }
+
+    static void AddDescription(Gdiplus::Graphics& graphics, const std::string& text, int& yOffset) {
+        Gdiplus::SolidBrush subBrush(COL_TEXT_DIM);
         std::wstring wText(text.begin(), text.end());
-        g.DrawString(wText.c_str(), -1, fontAssets.descriptionFont, Gdiplus::PointF((float)layoutMetrics.paddingX, (float)yOffset), &subBrush);
+        graphics.DrawString(wText.c_str(), -1, fontAssets.descriptionFont, Gdiplus::PointF((float)layoutMetrics.paddingX, (float)yOffset), &subBrush);
         yOffset += (int)(25 * layoutMetrics.scale);
     }
 
     static void DrawSeparator(Gdiplus::Graphics& g, int& yOffset) {
         yOffset += (int)(10 * layoutMetrics.scale);
-        Gdiplus::Pen pen(Gdiplus::Color(50, 50, 50), 1.0f);
-        g.DrawLine(&pen, layoutMetrics.paddingX, yOffset, layoutMetrics.windowW - layoutMetrics.paddingX, yOffset);
+        Gdiplus::Pen separatorPen(COL_SEPARATOR, layoutMetrics.separatorPenWidth);
+        g.DrawLine(&separatorPen, layoutMetrics.paddingX, yOffset, layoutMetrics.windowW - layoutMetrics.paddingX, yOffset);
         yOffset += (int)(20 * layoutMetrics.scale);
     }
-
-    static void DrawButtonText(Gdiplus::Graphics& graphics, const std::string& text, Gdiplus::Rect btnRect) {
-        std::wstring wText(text.begin(), text.end());
-    
-        Gdiplus::StringFormat format;
-        format.SetAlignment(Gdiplus::StringAlignmentCenter);
-        format.SetLineAlignment(Gdiplus::StringAlignmentCenter);
-
-        Gdiplus::SolidBrush textBrush(COL_TEXT);
-    
-        Gdiplus::RectF textRect((float)btnRect.X, (float)btnRect.Y, (float)btnRect.Width, (float)btnRect.Height);
-    
-        graphics.DrawString(wText.c_str(), -1, fontAssets.labelFont, textRect, &format, &textBrush);
-}
 
     static void DrawFooterButtons(Gdiplus::Graphics& graphics, int windowWidth) {
         int btnW = (int)(100 * layoutMetrics.scale);
@@ -217,26 +263,53 @@ namespace ConfigUI {
         int saveX = exitX - btnW - (int)(10 * layoutMetrics.scale);
         int defX  = saveX - btnW - (int)(10 * layoutMetrics.scale);
 
-        auto DrawBtn = [&](int x, int y, int w, int h, const std::string& label, void* target, Gdiplus::Color baseColor) {
+        auto DrawBtn = [&](int x, int y, int w, int h, const std::string& label, void* target, int type) {
             Gdiplus::Rect rect(x, y, w, h);
-            Gdiplus::Color drawingColor = baseColor;
-            if (hoveredTarget == target) {
-                drawingColor = Gdiplus::Color(
-                    baseColor.GetA(),
-                    (BYTE)(255 < baseColor.GetR() + 30 ? 255 : baseColor.GetR() + 30),
-                    (BYTE)(255 < baseColor.GetG() + 30 ? 255 : baseColor.GetG() + 30),
-                    (BYTE)(255 < baseColor.GetB() + 30 ? 255 : baseColor.GetB() + 30)
-                );
+            bool isHovered = (hoveredTarget == target);
+
+            Gdiplus::Color bgCol, txtCol;
+
+            if (type == 2) {
+                bgCol = isHovered ? COL_TEXT_BRIGHT : COL_SELECTED;
+                txtCol = COL_BG;
+            } else if (type == 1) {
+                bgCol = isHovered ? COL_HOVER : COL_SURFACE;
+                txtCol = isHovered ? COL_TEXT_BRIGHT : COL_TEXT_DIM;
+            } else {
+                bgCol = isHovered ? COL_EXIT_RED : COL_BG;
+                txtCol = isHovered ? COL_TEXT_BRIGHT : COL_TEXT_DIM;
             }
-            Gdiplus::SolidBrush br(drawingColor);
-            graphics.FillRectangle(&br, rect);
-            DrawButtonText(graphics, label, rect);
+
+            Gdiplus::GraphicsPath path;
+            float r = 6.0f * layoutMetrics.scale;
+            path.AddArc((float)rect.X, (float)rect.Y, r, r, 180, 90);
+            path.AddArc((float)rect.X + rect.Width - r, (float)rect.Y, r, r, 270, 90);
+            path.AddArc((float)rect.X + rect.Width - r, (float)rect.Y + rect.Height - r, r, r, 0, 90);
+            path.AddArc((float)rect.X, (float)rect.Y + rect.Height - r, r, r, 90, 90);
+            path.CloseFigure();
+
+            Gdiplus::SolidBrush btnBrush(bgCol);
+            graphics.FillPath(&btnBrush, &path);
+
+            if (type == 3 && !isHovered) {
+                Gdiplus::Pen borderPen(COL_HOVER, layoutMetrics.borderPenWidth);
+                graphics.DrawPath(&borderPen, &path);
+            }
+
+            std::wstring wText(label.begin(), label.end());
+            Gdiplus::StringFormat format;
+            format.SetAlignment(Gdiplus::StringAlignmentCenter);
+            format.SetLineAlignment(Gdiplus::StringAlignmentCenter);
+            Gdiplus::SolidBrush textBrush(txtCol);
+
+            graphics.DrawString(wText.c_str(), -1, fontAssets.labelFont, Gdiplus::RectF((float)x, (float)y, (float)w, (float)h), &format, &textBrush);
+
             RegisterZone(x, y, w, h, ControlType::BUTTON, target);
         };
 
-        DrawBtn(defX,  btnY, btnW, btnH, "Defaults", (void*)1, Gdiplus::Color(255, 60, 60, 60));
-        DrawBtn(saveX, btnY, btnW, btnH, "Save",     (void*)2, COL_ACCENT);
-        DrawBtn(exitX, btnY, btnW, btnH, "Exit",     (void*)3, Gdiplus::Color(255, 180, 50, 50));
+        DrawBtn(defX,  btnY, btnW, btnH, "Defaults", (void*)1, 1);
+        DrawBtn(saveX, btnY, btnW, btnH, "Save",     (void*)2, 2);
+        DrawBtn(exitX, btnY, btnW, btnH, "Exit",     (void*)3, 3);
     }
 
     static void Render(HDC hdc) {
@@ -248,7 +321,7 @@ namespace ConfigUI {
         
         clickZones.clear();
 
-        int yOffset = layoutMetrics.headerSpacing;
+        int yOffset = layoutMetrics.upperMargin;
 
         AddToggleRow(graphics, "Enable Task Switcher", yOffset, &Config::enableTaskSwitcher);
         AddBindingRow(graphics, "All Apps Shortcut", yOffset, &Config::allAppsSwitcherMod, &Config::allAppsSwitcherKey);
@@ -258,19 +331,19 @@ namespace ConfigUI {
 
         AddToggleRow(graphics, "VS Code Launcher", yOffset, &Config::enableVSCodeLauncher);
         AddToggleRow(graphics, "WSL Terminal Launcher", yOffset, &Config::enableWSLTerminalLauncher);
-        AddDescription(graphics, "* Launchers use mandatory Ctrl + Alt modifiers.", yOffset);
         AddBindingRow(graphics, "VS Code Key", yOffset, &Config::VSCodeLauncherKey);
         AddBindingRow(graphics, "WSL Terminal Key", yOffset, &Config::WSLTerminalLauncherKey);
+        AddDescription(graphics, "* Launchers use mandatory Ctrl + Alt modifiers.", yOffset);
 
         DrawSeparator(graphics, yOffset);
 
         AddToggleRow(graphics, "Enable Tab Switcher (Alt+Number)", yOffset, &Config::enableTabSwitcher);
-        AddDescription(graphics, "Select apps to enable tab switching:", yOffset);
+        AddCheckBoxRow(graphics, "Tab switching active for:", yOffset);
         int startX = layoutMetrics.paddingX;
         int currentX = startX;
         int colWidth = (int)(160 * layoutMetrics.scale);
         for (size_t i = 0; i < Config::DEFAULT_TAB_APPS.size(); ++i) {
-            if (i > 0 && i % 3 == 0) {
+            if (i > 0 && i % 2 == 0) {
                 yOffset += layoutMetrics.rowHeight;
                 currentX = startX;
             }
@@ -279,8 +352,8 @@ namespace ConfigUI {
         }
         yOffset += layoutMetrics.rowHeight;
 
-        Gdiplus::Pen sepPen(Gdiplus::Color(50, 50, 50), 1.0f);
-        graphics.DrawLine(&sepPen, 0, layoutMetrics.footerTop, layoutMetrics.windowW, layoutMetrics.footerTop);
+        Gdiplus::Pen separatorPen(COL_SEPARATOR, layoutMetrics.separatorPenWidth);
+        graphics.DrawLine(&separatorPen, 0, layoutMetrics.footerTop, layoutMetrics.windowW, layoutMetrics.footerTop);
 
         Gdiplus::SolidBrush footerBg(COL_BG); 
         graphics.FillRectangle(&footerBg, 0, layoutMetrics.footerTop + 1, layoutMetrics.windowW, layoutMetrics.footerHeight);
@@ -349,7 +422,7 @@ namespace ConfigUI {
                                         Config::SaveDefaultConfig(Config::GetConfigPath());
                                         break;
                                     case 2:
-                                        // Config::SaveConfig();
+                                        // TODO: Config::SaveConfig();
                                         break;
                                     case 3:
                                         PostMessage(hWnd, WM_CLOSE, 0, 0);

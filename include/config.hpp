@@ -2,6 +2,7 @@
 
 namespace Config {
     extern const std::vector<std::string> DEFAULT_TAB_APPS;
+    extern const std::map<std::string, std::string> APP_NAMES;
     extern bool enableTabSwitcher;
     extern std::set<std::string> tabbedApps;
 

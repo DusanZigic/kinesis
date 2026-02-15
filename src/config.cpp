@@ -8,6 +8,17 @@ namespace Config {
         "chrome.exe", "msedge.exe", "firefox.exe", 
         "explorer.exe", "WindowsTerminal.exe"
     };
+    const std::map<std::string, std::string> APP_NAMES = {
+        {"chrome.exe", "Google Chrome"},
+        {"msedge.exe", "Microsoft Edge"},
+        {"firefox.exe", "Firefox"},
+        {"WindowsTerminal.exe", "Terminal"},
+        {"Code.exe", "VS Code"},
+        {"devenv.exe", "Visual Studio"},
+        {"explorer.exe", "File Explorer"},
+        {"spotify.exe", "Spotify"},
+        {"discord.exe", "Discord"}
+    };
     bool enableTabSwitcher;
     std::set<std::string> tabbedApps;
 
