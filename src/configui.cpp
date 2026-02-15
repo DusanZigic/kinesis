@@ -17,6 +17,7 @@ namespace ConfigUI {
     static std::vector<ClickZone> clickZones;
 
     static void* currentlyRecording = nullptr;
+    static void* hoveredTarget = nullptr;
 
     static void UpdateLayoutMetrics() {
         int screenW = GetSystemMetrics(SM_CXSCREEN);
@@ -57,7 +58,7 @@ namespace ConfigUI {
     }
 
     static void RegisterZone(int x, int y, int w, int h, ControlType type, void* target) {
-        RECT r = { x, y, x + w, y + h };
+        RECT r = {x, y, x + w, y + h};
         clickZones.push_back({r, type, target});
     }
 
@@ -127,7 +128,7 @@ namespace ConfigUI {
 
         DrawLabel(graphics, appName, y, x + boxSize + 8);
 
-        RegisterZone(x, y, 150, layoutMetrics.rowHeight, CHECKBOX, (void*)&appName);
+        // RegisterZone(x, y, 150, layoutMetrics.rowHeight, CHECKBOX, (void*)&appName);
 }
 
     static void AddToggleRow(Gdiplus::Graphics& graphics, const std::string& label, int& yOffset, bool* target) {
@@ -172,6 +173,52 @@ namespace ConfigUI {
         yOffset += (int)(20 * layoutMetrics.scale);
     }
 
+    static void DrawButtonText(Gdiplus::Graphics& graphics, const std::string& text, Gdiplus::Rect btnRect) {
+        std::wstring wText(text.begin(), text.end());
+    
+        Gdiplus::StringFormat format;
+        format.SetAlignment(Gdiplus::StringAlignmentCenter);
+        format.SetLineAlignment(Gdiplus::StringAlignmentCenter);
+
+        Gdiplus::SolidBrush textBrush(COL_TEXT);
+    
+        Gdiplus::RectF textRect((float)btnRect.X, (float)btnRect.Y, (float)btnRect.Width, (float)btnRect.Height);
+    
+        graphics.DrawString(wText.c_str(), -1, fontAssets.labelFont, textRect, &format, &textBrush);
+}
+
+    static void DrawFooterButtons(Gdiplus::Graphics& graphics, int windowWidth, int footerTop, int footerHeight) {
+        int btnW = (int)(100 * layoutMetrics.scale);
+        int btnH = (int)(32 * layoutMetrics.scale);
+        int btnY = footerTop + (footerHeight - btnH) / 2;
+
+        int margin = (int)(20 * layoutMetrics.scale);
+        int exitX = windowWidth - btnW - margin;
+        int saveX = exitX - btnW - (int)(10 * layoutMetrics.scale);
+        int defX  = saveX - btnW - (int)(10 * layoutMetrics.scale);
+
+        auto DrawBtn = [&](int x, int y, int w, int h, const std::string& label, void* target, Gdiplus::Color baseColor) {
+            Gdiplus::Rect rect(x, y, w, h);
+            Gdiplus::Color drawingColor = baseColor;
+            if (hoveredTarget == target) {
+                drawingColor = Gdiplus::Color(
+                    baseColor.GetA(),
+                    (BYTE)(255 < baseColor.GetR() + 30 ? 255 : baseColor.GetR() + 30),
+                    (BYTE)(255 < baseColor.GetG() + 30 ? 255 : baseColor.GetG() + 30),
+                    (BYTE)(255 < baseColor.GetB() + 30 ? 255 : baseColor.GetB() + 30)
+                );
+            }
+            Gdiplus::SolidBrush br(drawingColor);
+            graphics.FillRectangle(&br, rect);
+            DrawButtonText(graphics, label, rect);
+            RegisterZone(x, y, w, h, BUTTON, target);
+        };
+
+        DrawBtn(defX,  btnY, btnW, btnH, "Defaults", (void*)1, Gdiplus::Color(255, 60, 60, 60));
+        DrawBtn(saveX, btnY, btnW, btnH, "Save",     (void*)2, COL_ACCENT);
+        DrawBtn(exitX, btnY, btnW, btnH, "Exit",     (void*)3, Gdiplus::Color(255, 180, 50, 50));
+    }
+
     static void Render(HWND hWnd, HDC hdc) {
         Gdiplus::Graphics graphics(hdc);
         graphics.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
@@ -186,9 +233,7 @@ namespace ConfigUI {
         
         clickZones.clear();
 
-        int footerHeight = (int)(70 * layoutMetrics.scale);
-        int scrollY = GetScrollPos(hWnd, SB_VERT);
-        int yOffset = layoutMetrics.headerSpacing - scrollY;
+        int yOffset = layoutMetrics.headerSpacing;
 
         AddToggleRow(graphics, "Enable Task Switcher", yOffset, &Config::enableTaskSwitcher);
         AddBindingRow(graphics, "All Apps Shortcut", yOffset, &Config::allAppsSwitcherMod, &Config::allAppsSwitcherKey);
@@ -218,13 +263,15 @@ namespace ConfigUI {
         }
         yOffset += layoutMetrics.rowHeight;
 
-        int footerTop = height - footerHeight;
+        int footerHeight = (int)(60 * layoutMetrics.scale);
+        int footerTop    = height - footerHeight;
 
         Gdiplus::Pen sepPen(Gdiplus::Color(50, 50, 50), 1.0f);
         graphics.DrawLine(&sepPen, 0, footerTop, width, footerTop);
 
         Gdiplus::SolidBrush footerBg(COL_BG); 
         graphics.FillRectangle(&footerBg, 0, footerTop + 1, width, footerHeight);
+        DrawFooterButtons(graphics, width, footerTop, footerHeight);
     }
 
     LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
@@ -257,10 +304,7 @@ namespace ConfigUI {
                 return 0;
             }
             case WM_LBUTTONDOWN: {
-                int x = LOWORD(lParam);
-                int y = HIWORD(lParam);
-                POINT pt = {x, y};
-
+                POINT pt = {GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
                 for (const auto& zone : clickZones) {
                     if (PtInRect(&zone.area, pt)) {
                         if (zone.type == ControlType::KEYBOX) {
@@ -276,6 +320,20 @@ namespace ConfigUI {
                                 Config::tabbedApps.erase(*appName);
                             } else {
                                 Config::tabbedApps.insert(*appName);
+                            }
+                            InvalidateRect(hWnd, NULL, FALSE);
+                        } else if (zone.type == BUTTON) {
+                            int buttonId = (int)(intptr_t)zone.target;
+                            switch (buttonId) {
+                                case 1:
+                                   Config::SaveDefaultConfig(Config::GetConfigPath());
+                                   break;
+                                case 2:
+                                    // Config::SaveConfig();
+                                    break;
+                                case 3:
+                                    PostMessage(hWnd, WM_CLOSE, 0, 0);
+                                    break;                               
                             }
                             InvalidateRect(hWnd, NULL, FALSE);
                         }
@@ -305,13 +363,27 @@ namespace ConfigUI {
             case WM_NCHITTEST: {
                 LRESULT hit = DefWindowProc(hWnd, msg, wParam, lParam);
                 if (hit == HTCLIENT) {
-                    POINT pt;
-                    pt.x = LOWORD(lParam);
-                    pt.y = HIWORD(lParam);
+                    POINT pt = {GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
                     ScreenToClient(hWnd, &pt);
                     if (pt.y < 40) return HTCAPTION;
                 }
                 return hit;
+            }
+            case WM_MOUSEMOVE: {
+                int x = GET_X_LPARAM(lParam);
+                int y = GET_Y_LPARAM(lParam);
+                void* lastHover = hoveredTarget;
+                hoveredTarget = nullptr;
+                for (const auto& zone : clickZones) {
+                    if (x >= zone.area.left && x <= zone.area.right && y >= zone.area.top && y <= zone.area.bottom) {
+                        hoveredTarget = zone.target;
+                        break;
+                    }
+                }
+                if (hoveredTarget != lastHover) {
+                    InvalidateRect(hWnd, NULL, FALSE);
+                }
+                return 0;
             }
             case WM_ERASEBKGND: {
                 return 1;

@@ -33,6 +33,7 @@ namespace ConfigUI {
         TOGGLE,
         KEYBOX,
         CHECKBOX,
+        BUTTON,
     };
 
     struct ClickZone {
