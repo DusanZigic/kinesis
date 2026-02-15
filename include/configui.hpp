@@ -11,6 +11,8 @@ namespace ConfigUI {
         
         int toggleW, toggleH;
         int keyBoxW, keyBoxH;
+
+        int footerHeight, footerTop;
         
         float scale;
     };

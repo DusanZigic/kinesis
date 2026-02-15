@@ -47,6 +47,10 @@ namespace ConfigUI {
         layoutMetrics.fontSizeLabel       = (int)(11 * layoutMetrics.scale);
         layoutMetrics.fontSizeKeyBinding  = (int)(10 * layoutMetrics.scale);
         layoutMetrics.fontSizeDescription = (int)( 9 * layoutMetrics.scale);
+
+        layoutMetrics.footerHeight = (int)(60 * layoutMetrics.scale);
+        layoutMetrics.footerTop    = layoutMetrics.windowH - layoutMetrics.footerHeight;
+
     }
 
     static void UpdateFonts() {
@@ -58,8 +62,10 @@ namespace ConfigUI {
     }
 
     static void RegisterZone(int x, int y, int w, int h, ControlType type, void* target) {
-        RECT r = {x, y, x + w, y + h};
-        clickZones.push_back({r, type, target});
+        if (type == ControlType::BUTTON || y + h < layoutMetrics.footerTop) {
+            RECT r = {x, y, x + w, y + h};
+            clickZones.push_back({r, type, target});
+        }
     }
 
     static void DrawLabel(Gdiplus::Graphics& graphics, const std::string& text, int yOffset, int xPos = -1) {
@@ -116,25 +122,39 @@ namespace ConfigUI {
 
     static void AddAppCheckbox(Gdiplus::Graphics& graphics, const std::string& appName, int x, int y) {
         bool isChecked = (Config::tabbedApps.find(appName) != Config::tabbedApps.end());
+    
         int boxSize = (int)(16 * layoutMetrics.scale);
-        Gdiplus::Rect rect(x, y + (layoutMetrics.rowHeight - boxSize) / 2, boxSize, boxSize);
-        Gdiplus::Pen borderPen(Gdiplus::Color(100, 100, 100));
-        graphics.DrawRectangle(&borderPen, rect);
+        int boxY = y + (layoutMetrics.rowHeight - boxSize) / 2;
+    
+        Gdiplus::Rect rect(x, boxY, boxSize, boxSize);
+        Gdiplus::Pen borderPen(isChecked ? COL_ACCENT : Gdiplus::Color(150, 150, 150), 1.5f);
+    
+        Gdiplus::GraphicsPath path;
+        float r = 4.0f * layoutMetrics.scale;
+        path.AddArc((float)rect.X, (float)rect.Y, r, r, 180, 90);
+        path.AddArc((float)rect.X + rect.Width - r, (float)rect.Y, r, r, 270, 90);
+        path.AddArc((float)rect.X + rect.Width - r, (float)rect.Y + rect.Height - r, r, r, 0, 90);
+        path.AddArc((float)rect.X, (float)rect.Y + rect.Height - r, r, r, 90, 90);
+        path.CloseFigure();
+    
+        graphics.DrawPath(&borderPen, &path);
 
         if (isChecked) {
             Gdiplus::SolidBrush accentBrush(COL_ACCENT);
-            graphics.FillRectangle(&accentBrush, rect.X + 3, rect.Y + 3, rect.Width - 5, rect.Height - 5);
+            graphics.FillPath(&accentBrush, &path); 
         }
 
-        DrawLabel(graphics, appName, y, x + boxSize + 8);
+        int textX = x + boxSize + (int)(8 * layoutMetrics.scale);
+        DrawLabel(graphics, appName, y, textX);
 
-        // RegisterZone(x, y, 150, layoutMetrics.rowHeight, CHECKBOX, (void*)&appName);
-}
+        int totalWidth = (int)(160 * layoutMetrics.scale); 
+        RegisterZone(x, y, totalWidth, layoutMetrics.rowHeight, ControlType::CHECKBOX, (void*)&appName);
+    }
 
     static void AddToggleRow(Gdiplus::Graphics& graphics, const std::string& label, int& yOffset, bool* target) {
         DrawLabel(graphics, label, yOffset);
         DrawToggle(graphics, layoutMetrics.columnX, yOffset, *target);
-        RegisterZone(layoutMetrics.columnX, yOffset, layoutMetrics.toggleW, layoutMetrics.toggleH, TOGGLE, target);
+        RegisterZone(layoutMetrics.columnX, yOffset, layoutMetrics.toggleW, layoutMetrics.toggleH, ControlType::TOGGLE, target);
         yOffset += layoutMetrics.rowHeight;
     }
 
@@ -145,7 +165,7 @@ namespace ConfigUI {
         if (modTarget) {
             x = layoutMetrics.columnX;
             DrawKeyBox(graphics, x, yOffset, *modTarget, (currentlyRecording == modTarget));
-            RegisterZone(x, yOffset, layoutMetrics.keyBoxW, layoutMetrics.keyBoxH, KEYBOX, modTarget);
+            RegisterZone(x, yOffset, layoutMetrics.keyBoxW, layoutMetrics.keyBoxH, ControlType::KEYBOX, modTarget);
         }
     
         if (keyTarget) {
@@ -153,7 +173,7 @@ namespace ConfigUI {
             DrawLabel(graphics, "+", yOffset, x - 5);
         
             DrawKeyBox(graphics, x, yOffset, *keyTarget, (currentlyRecording == keyTarget));
-            RegisterZone(x, yOffset, layoutMetrics.keyBoxW, layoutMetrics.keyBoxH, KEYBOX, keyTarget);
+            RegisterZone(x, yOffset, layoutMetrics.keyBoxW, layoutMetrics.keyBoxH, ControlType::KEYBOX, keyTarget);
         }
         
         yOffset += layoutMetrics.rowHeight;
@@ -187,10 +207,10 @@ namespace ConfigUI {
         graphics.DrawString(wText.c_str(), -1, fontAssets.labelFont, textRect, &format, &textBrush);
 }
 
-    static void DrawFooterButtons(Gdiplus::Graphics& graphics, int windowWidth, int footerTop, int footerHeight) {
+    static void DrawFooterButtons(Gdiplus::Graphics& graphics, int windowWidth) {
         int btnW = (int)(100 * layoutMetrics.scale);
         int btnH = (int)(32 * layoutMetrics.scale);
-        int btnY = footerTop + (footerHeight - btnH) / 2;
+        int btnY = layoutMetrics.footerTop + (layoutMetrics.footerHeight - btnH) / 2;
 
         int margin = (int)(20 * layoutMetrics.scale);
         int exitX = windowWidth - btnW - margin;
@@ -211,7 +231,7 @@ namespace ConfigUI {
             Gdiplus::SolidBrush br(drawingColor);
             graphics.FillRectangle(&br, rect);
             DrawButtonText(graphics, label, rect);
-            RegisterZone(x, y, w, h, BUTTON, target);
+            RegisterZone(x, y, w, h, ControlType::BUTTON, target);
         };
 
         DrawBtn(defX,  btnY, btnW, btnH, "Defaults", (void*)1, Gdiplus::Color(255, 60, 60, 60));
@@ -219,16 +239,11 @@ namespace ConfigUI {
         DrawBtn(exitX, btnY, btnW, btnH, "Exit",     (void*)3, Gdiplus::Color(255, 180, 50, 50));
     }
 
-    static void Render(HWND hWnd, HDC hdc) {
+    static void Render(HDC hdc) {
         Gdiplus::Graphics graphics(hdc);
         graphics.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
         graphics.SetTextRenderingHint(Gdiplus::TextRenderingHintClearTypeGridFit);
         
-        RECT clientRect;
-        GetClientRect(hWnd, &clientRect);
-        int width  = clientRect.right;
-        int height = clientRect.bottom;
-
         graphics.Clear(COL_BG);
         
         clickZones.clear();
@@ -251,27 +266,25 @@ namespace ConfigUI {
 
         AddToggleRow(graphics, "Enable Tab Switcher (Alt+Number)", yOffset, &Config::enableTabSwitcher);
         AddDescription(graphics, "Select apps to enable tab switching:", yOffset);
-        int startX = layoutMetrics.paddingX + (int)(10 * layoutMetrics.scale);
+        int startX = layoutMetrics.paddingX;
         int currentX = startX;
+        int colWidth = (int)(160 * layoutMetrics.scale);
         for (size_t i = 0; i < Config::DEFAULT_TAB_APPS.size(); ++i) {
-            if (i > 0 && i % 2 == 0) {
+            if (i > 0 && i % 3 == 0) {
                 yOffset += layoutMetrics.rowHeight;
                 currentX = startX;
             }
             AddAppCheckbox(graphics, Config::DEFAULT_TAB_APPS[i], currentX, yOffset);
-            currentX += (int)(200 * layoutMetrics.scale);
+            currentX += colWidth;
         }
         yOffset += layoutMetrics.rowHeight;
 
-        int footerHeight = (int)(60 * layoutMetrics.scale);
-        int footerTop    = height - footerHeight;
-
         Gdiplus::Pen sepPen(Gdiplus::Color(50, 50, 50), 1.0f);
-        graphics.DrawLine(&sepPen, 0, footerTop, width, footerTop);
+        graphics.DrawLine(&sepPen, 0, layoutMetrics.footerTop, layoutMetrics.windowW, layoutMetrics.footerTop);
 
         Gdiplus::SolidBrush footerBg(COL_BG); 
-        graphics.FillRectangle(&footerBg, 0, footerTop + 1, width, footerHeight);
-        DrawFooterButtons(graphics, width, footerTop, footerHeight);
+        graphics.FillRectangle(&footerBg, 0, layoutMetrics.footerTop + 1, layoutMetrics.windowW, layoutMetrics.footerHeight);
+        DrawFooterButtons(graphics, layoutMetrics.windowW);
     }
 
     LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
@@ -293,7 +306,7 @@ namespace ConfigUI {
                 HBITMAP memBitmap = CreateCompatibleBitmap(hdc, ps.rcPaint.right, ps.rcPaint.bottom);
                 SelectObject(memDC, memBitmap);
 
-                Render(hWnd, memDC);
+                Render(memDC);
 
                 BitBlt(hdc, 0, 0, ps.rcPaint.right, ps.rcPaint.bottom, memDC, 0, 0, SRCCOPY);
 
@@ -307,39 +320,47 @@ namespace ConfigUI {
                 POINT pt = {GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
                 for (const auto& zone : clickZones) {
                     if (PtInRect(&zone.area, pt)) {
-                        if (zone.type == ControlType::KEYBOX) {
-                            currentlyRecording = zone.target;
-                            InvalidateRect(hWnd, NULL, FALSE);
-                        } else if (zone.type == ControlType::TOGGLE) {
-                            bool* val = (bool*)zone.target;
-                            *val = !(*val);
-                            InvalidateRect(hWnd, NULL, FALSE);
-                        } else if (zone.type == CHECKBOX) {
-                            std::string* appName = (std::string*)zone.target;
-                            if (Config::tabbedApps.count(*appName)) {
-                                Config::tabbedApps.erase(*appName);
-                            } else {
-                                Config::tabbedApps.insert(*appName);
+                        switch (zone.type) {
+                            case ControlType::KEYBOX: {
+                                currentlyRecording = zone.target;
+                                InvalidateRect(hWnd, NULL, FALSE);
+                                break;
                             }
-                            InvalidateRect(hWnd, NULL, FALSE);
-                        } else if (zone.type == BUTTON) {
-                            int buttonId = (int)(intptr_t)zone.target;
-                            switch (buttonId) {
-                                case 1:
-                                   Config::SaveDefaultConfig(Config::GetConfigPath());
-                                   break;
-                                case 2:
-                                    // Config::SaveConfig();
-                                    break;
-                                case 3:
-                                    PostMessage(hWnd, WM_CLOSE, 0, 0);
-                                    break;                               
+                            case ControlType::TOGGLE: {
+                                bool* val = (bool*)zone.target;
+                                *val = !(*val);
+                                InvalidateRect(hWnd, NULL, FALSE);
+                                break;
                             }
-                            InvalidateRect(hWnd, NULL, FALSE);
+                            case ControlType::CHECKBOX: {
+                                std::string appName = *(std::string*)zone.target;
+                                if (Config::tabbedApps.count(appName)) {
+                                    Config::tabbedApps.erase(appName);
+                                } else {
+                                    Config::tabbedApps.insert(appName);
+                                }
+                                InvalidateRect(hWnd, NULL, FALSE);
+                                break;
+                            }
+                            case ControlType::BUTTON: {
+                                int buttonId = (int)(intptr_t)zone.target;
+                                switch (buttonId) {
+                                    case 1:
+                                        Config::SaveDefaultConfig(Config::GetConfigPath());
+                                        break;
+                                    case 2:
+                                        // Config::SaveConfig();
+                                        break;
+                                    case 3:
+                                        PostMessage(hWnd, WM_CLOSE, 0, 0);
+                                        break;
+                                }
+                                InvalidateRect(hWnd, NULL, FALSE);
+                                break;
+                            }
                         }
                         break;
                     }
-
                 }
                 return 0;
             }
