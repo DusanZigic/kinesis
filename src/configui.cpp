@@ -37,8 +37,6 @@ namespace ConfigUI {
 
         layoutMetrics.windowW = (int)(520 * layoutMetrics.scale);
         layoutMetrics.windowH = (int)(600 * layoutMetrics.scale);
-        // layoutMetrics.windowH = (int)(screenH * 0.75f);
-        // layoutMetrics.windowW = (int)(layoutMetrics.windowH * 0.85f);
         layoutMetrics.windowY = (screenH - layoutMetrics.windowH) / 2;
         layoutMetrics.windowX = (screenW - layoutMetrics.windowW) / 2;
 
