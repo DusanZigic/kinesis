@@ -12,6 +12,7 @@ namespace ConfigUI {
         float labelWidth;
         int footerHeight, footerTop;
         int borderPenWidth, separatorPenWidth;
+        int scrollBarW, scrollBarMargin, scrollBarUpperPadding, scrollBarLowerPadding;
         float scale;
     };
 

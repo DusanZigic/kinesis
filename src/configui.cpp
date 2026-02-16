@@ -23,14 +23,22 @@ namespace ConfigUI {
     static void* currentlyRecording = nullptr;
     static void* hoveredTarget = nullptr;
 
+    static float currentScrollY = 0.0f;
+    static float targetScrollY = 0.0f;
+    static int maxScroll = 0;
+    static const int SCROLL_STEP = 40;
+    static const float LERP_FACTOR = 0.35f;
+
     static void UpdateLayoutMetrics() {
         int screenW = GetSystemMetrics(SM_CXSCREEN);
         int screenH = GetSystemMetrics(SM_CYSCREEN);
 
         layoutMetrics.scale = 1.5f * (float)screenH / 1080.0f;
 
-        layoutMetrics.windowH = (int)(screenH * 0.75f);
-        layoutMetrics.windowW = (int)(layoutMetrics.windowH * 0.85f);
+        layoutMetrics.windowW = (int)(520 * layoutMetrics.scale);
+        layoutMetrics.windowH = (int)(600 * layoutMetrics.scale);
+        // layoutMetrics.windowH = (int)(screenH * 0.75f);
+        // layoutMetrics.windowW = (int)(layoutMetrics.windowH * 0.85f);
         layoutMetrics.windowY = (screenH - layoutMetrics.windowH) / 2;
         layoutMetrics.windowX = (screenW - layoutMetrics.windowW) / 2;
 
@@ -59,6 +67,13 @@ namespace ConfigUI {
 
         layoutMetrics.borderPenWidth    = 1.5f * (float)layoutMetrics.scale;
         layoutMetrics.separatorPenWidth = 1.0f * (float)layoutMetrics.scale;
+
+        layoutMetrics.scrollBarW = (int)(5 * layoutMetrics.scale);
+        layoutMetrics.scrollBarMargin = (int)(4 * layoutMetrics.scale);
+        layoutMetrics.scrollBarUpperPadding = (int)(5 * layoutMetrics.scale);
+        layoutMetrics.scrollBarLowerPadding = (int)(10 * layoutMetrics.scale);
+        int reservedForScroll = (maxScroll > 0) ? (layoutMetrics.scrollBarW + layoutMetrics.scrollBarMargin * 2) : 0;
+        layoutMetrics.labelWidth -= (float)reservedForScroll;
     }
 
     static void UpdateFonts() {
@@ -70,7 +85,7 @@ namespace ConfigUI {
     }
 
     static void RegisterZone(int x, int y, int w, int h, ControlType type, void* target) {
-        if (type == ControlType::BUTTON || y + h < layoutMetrics.footerTop) {
+        if (type == ControlType::BUTTON || (y + h < layoutMetrics.footerTop && y > 0)) {
             RECT r = {x, y, x + w, y + h};
             clickZones.push_back({r, type, target});
         }
@@ -312,16 +327,53 @@ namespace ConfigUI {
         DrawBtn(exitX, btnY, btnW, btnH, "Exit",     (void*)3, 3);
     }
 
+    static void DrawCustomScrollbar(Gdiplus::Graphics& graphics, int visibleHeight) {
+        if (maxScroll <= 0) return;
+
+        float visibleH = (float)visibleHeight;
+        float totalH = visibleH + maxScroll;
+        float ratio = visibleH / totalH;
+
+        int barH = (int)(visibleH * ratio);
+        int barY = (int)(currentScrollY * ratio);
+        int barX = layoutMetrics.windowW - layoutMetrics.scrollBarW - layoutMetrics.scrollBarMargin;
+
+        Gdiplus::SolidBrush barBrush(COL_SURFACE);
+
+        graphics.FillEllipse(&barBrush,
+            barX,
+            barY + layoutMetrics.scrollBarUpperPadding,
+            layoutMetrics.scrollBarW,
+            layoutMetrics.scrollBarW
+        );
+        graphics.FillRectangle(&barBrush,
+            barX,
+            barY + layoutMetrics.scrollBarUpperPadding + (layoutMetrics.scrollBarW / 2),
+            layoutMetrics.scrollBarW,
+            barH - layoutMetrics.scrollBarLowerPadding - layoutMetrics.scrollBarW
+        );
+        graphics.FillEllipse(&barBrush,
+            barX,
+            barY + barH - layoutMetrics.scrollBarUpperPadding - layoutMetrics.scrollBarW,
+            layoutMetrics.scrollBarW,
+            layoutMetrics.scrollBarW
+        );
+    }
+
     static void Render(HDC hdc) {
         Gdiplus::Graphics graphics(hdc);
         graphics.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
         graphics.SetTextRenderingHint(Gdiplus::TextRenderingHintClearTypeGridFit);
         
-        graphics.Clear(COL_BG);
-        
+        int contentVisibleHeight = layoutMetrics.windowH - layoutMetrics.footerHeight;
+
+        graphics.Clear(COL_BG);        
         clickZones.clear();
 
-        int yOffset = layoutMetrics.upperMargin;
+        Gdiplus::Region contentRegion(Gdiplus::Rect(0, 0, layoutMetrics.windowW, contentVisibleHeight));
+        graphics.SetClip(&contentRegion);
+
+        int yOffset = layoutMetrics.upperMargin - (int)currentScrollY;
 
         AddToggleRow(graphics, "Enable Task Switcher", yOffset, &Config::enableTaskSwitcher);
         AddBindingRow(graphics, "All Apps Shortcut", yOffset, &Config::allAppsSwitcherMod, &Config::allAppsSwitcherKey);
@@ -352,6 +404,13 @@ namespace ConfigUI {
         }
         yOffset += layoutMetrics.rowHeight;
 
+        int absoluteBottom = yOffset + currentScrollY + (int)(20 * layoutMetrics.scale);
+        maxScroll = absoluteBottom - contentVisibleHeight > 0 ? absoluteBottom - contentVisibleHeight : 0;
+
+        graphics.ResetClip();
+
+        DrawCustomScrollbar(graphics, contentVisibleHeight);
+
         Gdiplus::Pen separatorPen(COL_SEPARATOR, layoutMetrics.separatorPenWidth);
         graphics.DrawLine(&separatorPen, 0, layoutMetrics.footerTop, layoutMetrics.windowW, layoutMetrics.footerTop);
 
@@ -369,6 +428,9 @@ namespace ConfigUI {
             }
             case WM_DESTROY: {
                 fontAssets.Release();
+                KillTimer(hWnd, 1);
+                currentScrollY = 0.0f;
+                targetScrollY = 0.0f;
                 return 0;
             }
             case WM_PAINT: {
@@ -479,6 +541,29 @@ namespace ConfigUI {
                 }
                 return 0;
             }
+            case WM_MOUSEWHEEL: {
+                int delta = GET_WHEEL_DELTA_WPARAM(wParam);
+                targetScrollY += (delta > 0) ? -SCROLL_STEP : SCROLL_STEP;
+
+                if (targetScrollY < 0) targetScrollY = 0;
+                if (targetScrollY > maxScroll) targetScrollY = (float)maxScroll;
+
+                SetTimer(hWnd, 1, 16, NULL);
+                return 0;
+            }
+            case WM_TIMER: {
+                if (wParam == 1) {
+                    float diff = targetScrollY - currentScrollY;
+                    if (abs(diff) > 0.5f) {
+                        currentScrollY += diff * LERP_FACTOR;
+                        InvalidateRect(hWnd, NULL, FALSE);
+                    } else {
+                        currentScrollY = targetScrollY;
+                        KillTimer(hWnd, 1);
+                    }
+                }
+                return 0;
+            }
             case WM_ERASEBKGND: {
                 return 1;
             }
@@ -504,6 +589,8 @@ namespace ConfigUI {
 
         UpdateLayoutMetrics();
         UpdateFonts();
+        currentScrollY = 0.0f;
+        targetScrollY = 0.0f;
 
         hConfigWindow = CreateWindowExA(
             WS_EX_APPWINDOW | WS_EX_LAYERED,
