@@ -11,6 +11,7 @@ namespace ConfigUI {
         int keyBoxW, keyBoxH;
         float labelWidth;
         int footerHeight, footerTop;
+        int contentVisibleHeight;
         int borderPenWidth, separatorPenWidth;
         int scrollBarW, scrollBarMargin, scrollBarUpperPadding, scrollBarLowerPadding;
         float scale;
@@ -35,6 +36,7 @@ namespace ConfigUI {
         KEYBOX,
         CHECKBOX,
         BUTTON,
+        SCROLLBAR,
     };
 
     struct ClickZone {

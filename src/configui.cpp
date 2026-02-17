@@ -19,6 +19,7 @@ namespace ConfigUI {
     static FontAssets fontAssets;
 
     static std::vector<ClickZone> clickZones;
+    ControlType hoveredType;
 
     static void* currentlyRecording = nullptr;
     static void* hoveredTarget = nullptr;
@@ -28,6 +29,10 @@ namespace ConfigUI {
     static int maxScroll = 0;
     static const int SCROLL_STEP = 40;
     static const float LERP_FACTOR = 0.35f;
+    bool isDraggingScroll = false;
+    int dragStartY = 0;
+    float scrollStartPos = 0.0f;
+    bool isScrollHovered;
 
     static void UpdateLayoutMetrics() {
         int screenW = GetSystemMetrics(SM_CXSCREEN);
@@ -63,6 +68,8 @@ namespace ConfigUI {
         layoutMetrics.footerHeight = (int)(60 * layoutMetrics.scale);
         layoutMetrics.footerTop    = layoutMetrics.windowH - layoutMetrics.footerHeight;
 
+        layoutMetrics.contentVisibleHeight = layoutMetrics.windowH - layoutMetrics.footerHeight;
+
         layoutMetrics.borderPenWidth    = 1.5f * (float)layoutMetrics.scale;
         layoutMetrics.separatorPenWidth = 1.0f * (float)layoutMetrics.scale;
 
@@ -83,7 +90,7 @@ namespace ConfigUI {
     }
 
     static void RegisterZone(int x, int y, int w, int h, ControlType type, void* target) {
-        if (type == ControlType::BUTTON || (y + h < layoutMetrics.footerTop && y > 0)) {
+        if (type == ControlType::BUTTON || type == ControlType::SCROLLBAR || (y + h < layoutMetrics.footerTop && y > 0)) {
             RECT r = {x, y, x + w, y + h};
             clickZones.push_back({r, type, target});
         }
@@ -325,10 +332,10 @@ namespace ConfigUI {
         DrawBtn(exitX, btnY, btnW, btnH, "Exit",     (void*)3, 3);
     }
 
-    static void DrawCustomScrollbar(Gdiplus::Graphics& graphics, int visibleHeight) {
+    static void DrawCustomScrollbar(Gdiplus::Graphics& graphics) {
         if (maxScroll <= 0) return;
 
-        float visibleH = (float)visibleHeight;
+        float visibleH = (float)layoutMetrics.contentVisibleHeight;
         float totalH = visibleH + maxScroll;
         float ratio = visibleH / totalH;
 
@@ -336,7 +343,22 @@ namespace ConfigUI {
         int barY = (int)(currentScrollY * ratio);
         int barX = layoutMetrics.windowW - layoutMetrics.scrollBarW - layoutMetrics.scrollBarMargin;
 
-        Gdiplus::SolidBrush barBrush(COL_SURFACE);
+        RegisterZone(
+            barX - layoutMetrics.scrollBarMargin,
+            barY + layoutMetrics.scrollBarLowerPadding,
+            layoutMetrics.scrollBarW + layoutMetrics.scrollBarMargin,
+            barH - layoutMetrics.scrollBarUpperPadding,
+            ControlType::SCROLLBAR,
+            nullptr
+        );
+        
+        Gdiplus::Color scrollCol = COL_SURFACE;
+        if (isDraggingScroll) {
+            scrollCol = COL_TEXT_BRIGHT;        
+        } else if (isScrollHovered) {
+            scrollCol = COL_HOVER;
+        }
+        Gdiplus::SolidBrush barBrush(scrollCol);
 
         graphics.FillEllipse(&barBrush,
             barX,
@@ -362,13 +384,11 @@ namespace ConfigUI {
         Gdiplus::Graphics graphics(hdc);
         graphics.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
         graphics.SetTextRenderingHint(Gdiplus::TextRenderingHintClearTypeGridFit);
-        
-        int contentVisibleHeight = layoutMetrics.windowH - layoutMetrics.footerHeight;
 
         graphics.Clear(COL_BG);        
         clickZones.clear();
 
-        Gdiplus::Region contentRegion(Gdiplus::Rect(0, 0, layoutMetrics.windowW, contentVisibleHeight));
+        Gdiplus::Region contentRegion(Gdiplus::Rect(0, 0, layoutMetrics.windowW, layoutMetrics.contentVisibleHeight));
         graphics.SetClip(&contentRegion);
 
         int yOffset = layoutMetrics.upperMargin - (int)currentScrollY;
@@ -403,11 +423,11 @@ namespace ConfigUI {
         yOffset += layoutMetrics.rowHeight;
 
         int absoluteBottom = yOffset + currentScrollY + (int)(20 * layoutMetrics.scale);
-        maxScroll = absoluteBottom - contentVisibleHeight > 0 ? absoluteBottom - contentVisibleHeight : 0;
+        maxScroll = absoluteBottom - layoutMetrics.contentVisibleHeight > 0 ? absoluteBottom - layoutMetrics.contentVisibleHeight : 0;
 
         graphics.ResetClip();
 
-        DrawCustomScrollbar(graphics, contentVisibleHeight);
+        DrawCustomScrollbar(graphics);
 
         Gdiplus::Pen separatorPen(COL_SEPARATOR, layoutMetrics.separatorPenWidth);
         graphics.DrawLine(&separatorPen, 0, layoutMetrics.footerTop, layoutMetrics.windowW, layoutMetrics.footerTop);
@@ -491,9 +511,25 @@ namespace ConfigUI {
                                 InvalidateRect(hWnd, NULL, FALSE);
                                 break;
                             }
+                            case ControlType::SCROLLBAR: {
+                                isDraggingScroll = true;
+                                dragStartY = pt.y;
+                                scrollStartPos = targetScrollY;
+                                SetCapture(hWnd);
+                                InvalidateRect(hWnd, NULL, FALSE);
+                                return 0;
+                            }
                         }
                         break;
                     }
+                }
+                return 0;
+            }
+            case WM_LBUTTONUP: {
+                if (isDraggingScroll) {
+                    isDraggingScroll = false;
+                    ReleaseCapture();
+                    InvalidateRect(hWnd, NULL, FALSE);
                 }
                 return 0;
             }
@@ -524,17 +560,45 @@ namespace ConfigUI {
                 return hit;
             }
             case WM_MOUSEMOVE: {
-                int x = GET_X_LPARAM(lParam);
-                int y = GET_Y_LPARAM(lParam);
+                TRACKMOUSEEVENT tme {};
+                tme.cbSize = sizeof(tme);
+                tme.dwFlags = TME_LEAVE;
+                tme.hwndTrack = hWnd;
+                TrackMouseEvent(&tme);
+
+                POINT pt = {GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
+
+                if (isDraggingScroll) {
+                    float totalH = (float)layoutMetrics.contentVisibleHeight + maxScroll;
+                    float ratio = (float)layoutMetrics.contentVisibleHeight / totalH;
+
+                    int deltaY = pt.y - dragStartY;
+                    targetScrollY = scrollStartPos + (deltaY / ratio);
+
+                    if (targetScrollY < 0) targetScrollY = 0;
+                    if (targetScrollY > maxScroll) targetScrollY = (float)maxScroll;
+
+                    currentScrollY = targetScrollY;
+
+                    InvalidateRect(hWnd, NULL, FALSE);
+                    return 0;
+                }
+
                 void* lastHover = hoveredTarget;
+                bool lastScrollHover = isScrollHovered;
+                isScrollHovered = false;
                 hoveredTarget = nullptr;
                 for (const auto& zone : clickZones) {
-                    if (x >= zone.area.left && x <= zone.area.right && y >= zone.area.top && y <= zone.area.bottom) {
-                        hoveredTarget = zone.target;
+                    if (PtInRect(&zone.area, pt)) {
+                        if (zone.type == SCROLLBAR) {
+                            isScrollHovered = true;
+                        } else {
+                            hoveredTarget = zone.target;
+                        }
                         break;
                     }
                 }
-                if (hoveredTarget != lastHover) {
+                if (hoveredTarget != lastHover || isScrollHovered != lastScrollHover) {
                     InvalidateRect(hWnd, NULL, FALSE);
                 }
                 return 0;
@@ -547,6 +611,20 @@ namespace ConfigUI {
                 if (targetScrollY > maxScroll) targetScrollY = (float)maxScroll;
 
                 SetTimer(hWnd, 1, 16, NULL);
+                return 0;
+            }
+            case WM_MOUSELEAVE: {
+                isScrollHovered = false;
+                hoveredTarget = nullptr;
+                InvalidateRect(hWnd, NULL, FALSE);
+                return 0;
+            }
+            case WM_KILLFOCUS: {
+                isDraggingScroll = false;
+                isScrollHovered = false;
+                hoveredTarget = nullptr;
+                ReleaseCapture();
+                InvalidateRect(hWnd, NULL, FALSE);
                 return 0;
             }
             case WM_TIMER: {
