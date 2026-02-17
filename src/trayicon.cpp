@@ -80,6 +80,7 @@ void ShowTrayMenu(HWND hGhostWnd) {
                 break;
             case ID_DEFAULT_CONFIG:
                 Config::DefaultConfig();
+                Config::SaveConfig();
                 break;
             case ID_EXIT:
                 PostQuitMessage(0);

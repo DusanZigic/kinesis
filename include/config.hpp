@@ -24,5 +24,7 @@ namespace Config {
     void DefaultConfig();
     void OpenConfig();
     void LoadConfig();
-    void setUIConfig(Configuration& configuration);
+    void SaveConfig();
+    void SetUIConfig(Configuration& configuration);
+    void SetConfgiFromUI(const Configuration& configuration);
 }

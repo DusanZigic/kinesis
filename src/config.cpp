@@ -90,7 +90,7 @@ namespace Config {
 
         file << "  // Same app / cluster task switcher\n"
              << "  \"sameAppsSwitcherMod\": \"" << VkToString(configuration.sameAppsSwitcherMod) << "\",\n"
-             << "  \"sameAppsSwitcherKey\": \"" << VkToString(configuration.sameAppsSwitcherKey) << "\",\n";
+             << "  \"sameAppsSwitcherKey\": \"" << VkToString(configuration.sameAppsSwitcherKey) << "\",\n\n";
              
         file << "  // Enable or disable VS Code launcher and shortcuts (Mandatory: Ctrl + Alt + Key)\n";
         file << "  \"enableVSCodeLauncher\": "<< std::boolalpha << configuration.enableVSCodeLauncher << ",\n";
@@ -108,11 +108,16 @@ namespace Config {
             file << "\"" << app << "\"";
             if (++i < configuration.tabbedApps.size()) file << ", ";
         }        
-        file << "]\n\n";
+        file << "]\n";
 
         file << "}";
         
         file.close();
+    }
+
+    void SaveConfig() {
+        std::string configPath = GetConfigPath();
+        SaveConfig(configPath, currentConfiguration);
     }
 
     void OpenConfig() {
@@ -121,9 +126,7 @@ namespace Config {
     }
 
     void DefaultConfig() {
-        std::string configPath = GetConfigPath();
-        SaveConfig(configPath, defaultConfiguration);
-        LoadConfig();
+        currentConfiguration = defaultConfiguration;
     }
 
     static std::string CleanValue(std::string s) {
@@ -199,7 +202,11 @@ namespace Config {
         return;
     }
 
-    void setUIConfig(Configuration& configuration) {
+    void SetUIConfig(Configuration& configuration) {
         configuration = currentConfiguration;
+    }
+
+    void SetConfgiFromUI(const Configuration& configuration) {
+        currentConfiguration = configuration;
     }
 }

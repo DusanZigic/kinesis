@@ -34,6 +34,8 @@ namespace ConfigUI {
     float scrollStartPos = 0.0f;
     bool isScrollHovered;
 
+    Config::Configuration uiDraftConfig;
+
     static void UpdateLayoutMetrics() {
         int screenW = GetSystemMetrics(SM_CXSCREEN);
         int screenH = GetSystemMetrics(SM_CYSCREEN);
@@ -165,8 +167,8 @@ namespace ConfigUI {
     }
 
     static std::string GetAppDisplayName(const std::string& appName) {
-        auto it = Config::APP_NAMES.find(appName);
-        if (it != Config::APP_NAMES.end()) {
+        auto it = uiDraftConfig.tabbedAppsNames.find(appName);
+        if (it != uiDraftConfig.tabbedAppsNames.end()) {
             return it->second;
         }
 
@@ -194,7 +196,7 @@ namespace ConfigUI {
     }
 
     static void AddAppCheckbox(Gdiplus::Graphics& graphics, const std::string& appName, int x, int y) {
-        bool isChecked = (Config::tabbedApps.find(appName) != Config::tabbedApps.end());
+        bool isChecked = (uiDraftConfig.tabbedApps.find(appName) != uiDraftConfig.tabbedApps.end());
     
         int boxSize = (int)(16 * layoutMetrics.scale);
         int boxY = y + (layoutMetrics.rowHeight - boxSize) / 2;
@@ -393,32 +395,34 @@ namespace ConfigUI {
 
         int yOffset = layoutMetrics.upperMargin - (int)currentScrollY;
 
-        AddToggleRow(graphics, "Enable Task Switcher", yOffset, &Config::enableTaskSwitcher);
-        AddBindingRow(graphics, "All Apps Shortcut", yOffset, &Config::allAppsSwitcherMod, &Config::allAppsSwitcherKey);
-        AddBindingRow(graphics, "Same App Shortcut", yOffset, &Config::sameAppsSwitcherMod, &Config::sameAppsSwitcherKey);
+        AddToggleRow(graphics, "Enable Task Switcher", yOffset, &uiDraftConfig.enableTaskSwitcher);
+        AddBindingRow(graphics, "All Apps Shortcut", yOffset, &uiDraftConfig.allAppsSwitcherMod, &uiDraftConfig.allAppsSwitcherKey);
+        AddBindingRow(graphics, "Same App Shortcut", yOffset, &uiDraftConfig.sameAppsSwitcherMod, &uiDraftConfig.sameAppsSwitcherKey);
 
         DrawSeparator(graphics, yOffset);
 
-        AddToggleRow(graphics, "VS Code Launcher", yOffset, &Config::enableVSCodeLauncher);
-        AddToggleRow(graphics, "WSL Terminal Launcher", yOffset, &Config::enableWSLTerminalLauncher);
-        AddBindingRow(graphics, "VS Code Key", yOffset, &Config::VSCodeLauncherKey);
-        AddBindingRow(graphics, "WSL Terminal Key", yOffset, &Config::WSLTerminalLauncherKey);
+        AddToggleRow(graphics, "VS Code Launcher", yOffset, &uiDraftConfig.enableVSCodeLauncher);
+        AddToggleRow(graphics, "WSL Terminal Launcher", yOffset, &uiDraftConfig.enableWSLTerminalLauncher);
+        AddBindingRow(graphics, "VS Code Key", yOffset, &uiDraftConfig.VSCodeLauncherKey);
+        AddBindingRow(graphics, "WSL Terminal Key", yOffset, &uiDraftConfig.WSLTerminalLauncherKey);
         AddDescription(graphics, "* Launchers use mandatory Ctrl + Alt modifiers.", yOffset);
 
         DrawSeparator(graphics, yOffset);
 
-        AddToggleRow(graphics, "Enable Tab Switcher (Alt+Number)", yOffset, &Config::enableTabSwitcher);
+        AddToggleRow(graphics, "Enable Tab Switcher (Alt+Number)", yOffset, &uiDraftConfig.enableTabSwitcher);
         AddCheckBoxRow(graphics, "Tab switching active for:", yOffset);
         int startX = layoutMetrics.paddingX;
         int currentX = startX;
         int colWidth = (int)(160 * layoutMetrics.scale);
-        for (size_t i = 0; i < Config::DEFAULT_TAB_APPS.size(); ++i) {
+        size_t i = 0;
+        for (const auto& tabbedApp : Config::defaultConfiguration.tabbedApps) {
             if (i > 0 && i % 2 == 0) {
                 yOffset += layoutMetrics.rowHeight;
                 currentX = startX;
             }
-            AddAppCheckbox(graphics, Config::DEFAULT_TAB_APPS[i], currentX, yOffset);
+            AddAppCheckbox(graphics, tabbedApp, currentX, yOffset);
             currentX += colWidth;
+            i++;
         }
         yOffset += layoutMetrics.rowHeight;
 
@@ -437,7 +441,7 @@ namespace ConfigUI {
         DrawFooterButtons(graphics, layoutMetrics.windowW);
     }
 
-    LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         switch (msg) {
             case WM_CLOSE: {
                 DestroyWindow(hWnd);
@@ -487,10 +491,10 @@ namespace ConfigUI {
                             }
                             case ControlType::CHECKBOX: {
                                 std::string appName = *(std::string*)zone.target;
-                                if (Config::tabbedApps.count(appName)) {
-                                    Config::tabbedApps.erase(appName);
+                                if (uiDraftConfig.tabbedApps.count(appName)) {
+                                    uiDraftConfig.tabbedApps.erase(appName);
                                 } else {
-                                    Config::tabbedApps.insert(appName);
+                                    uiDraftConfig.tabbedApps.insert(appName);
                                 }
                                 InvalidateRect(hWnd, NULL, FALSE);
                                 break;
@@ -499,10 +503,12 @@ namespace ConfigUI {
                                 int buttonId = (int)(intptr_t)zone.target;
                                 switch (buttonId) {
                                     case 1:
-                                        Config::SaveDefaultConfig(Config::GetConfigPath());
+                                        Config::DefaultConfig();
+                                        Config::SetUIConfig(uiDraftConfig);
                                         break;
                                     case 2:
-                                        // TODO: Config::SaveConfig();
+                                        Config::SetConfgiFromUI(uiDraftConfig);
+                                        Config::SaveConfig();
                                         break;
                                     case 3:
                                         PostMessage(hWnd, WM_CLOSE, 0, 0);
@@ -667,6 +673,7 @@ namespace ConfigUI {
         UpdateFonts();
         currentScrollY = 0.0f;
         targetScrollY = 0.0f;
+        Config::SetUIConfig(uiDraftConfig);
 
         hConfigWindow = CreateWindowExA(
             WS_EX_APPWINDOW | WS_EX_LAYERED,
