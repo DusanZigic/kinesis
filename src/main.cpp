@@ -48,11 +48,11 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
 
         if (isDown) {
             if (ctrlHeld && altHeld) {
-                if (Config::enableVSCodeLauncher && pKeyBoard->vkCode == Config::VSCodeLauncherKey) {
+                if (Config::currentConfiguration.enableVSCodeLauncher && pKeyBoard->vkCode == Config::currentConfiguration.VSCodeLauncherKey) {
                     ShowLauncher(LauncherMode::VSCode);
                     return 1;
                 }
-                if (Config::enableWSLTerminalLauncher && pKeyBoard->vkCode == Config::WSLTerminalLauncherKey) {
+                if (Config::currentConfiguration.enableWSLTerminalLauncher && pKeyBoard->vkCode == Config::currentConfiguration.WSLTerminalLauncherKey) {
                     ShowLauncher(LauncherMode::WSL);
                     return 1;
                 }
@@ -71,12 +71,12 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
                     AppCycleSwitcher(pKeyBoard->vkCode, SwitcherMode::None);
                     return 1;
                 }
-                if (pKeyBoard->vkCode == Config::allAppsSwitcherKey) {
-                    AppCycleSwitcher(Config::allAppsSwitcherKey, SwitcherMode::AllApps);
+                if (pKeyBoard->vkCode == Config::currentConfiguration.allAppsSwitcherKey) {
+                    AppCycleSwitcher(Config::currentConfiguration.allAppsSwitcherKey, SwitcherMode::AllApps);
                     return 1;
                 }
-                if (pKeyBoard->vkCode == Config::sameAppsSwitcherKey) {
-                    AppCycleSwitcher(Config::sameAppsSwitcherKey, SwitcherMode::SameApp);
+                if (pKeyBoard->vkCode == Config::currentConfiguration.sameAppsSwitcherKey) {
+                    AppCycleSwitcher(Config::currentConfiguration.sameAppsSwitcherKey, SwitcherMode::SameApp);
                     return 1;
                 }
                 if (pKeyBoard->vkCode == VK_RETURN || pKeyBoard->vkCode == VK_ESCAPE) {
@@ -85,22 +85,22 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
                     return 1;
                 }
             }
-            if (!IsSwitcherActive() && Config::enableTaskSwitcher) {
-                bool allAppsSwitcherModHeld = (GetAsyncKeyState(Config::allAppsSwitcherMod) & 0x8000);
-                if (allAppsSwitcherModHeld && pKeyBoard->vkCode == Config::allAppsSwitcherKey) {
-                    activeSwitcherMod = Config::allAppsSwitcherMod;
-                    AppCycleSwitcher(Config::allAppsSwitcherMod, SwitcherMode::AllApps);
+            if (!IsSwitcherActive() && Config::currentConfiguration.enableTaskSwitcher) {
+                bool allAppsSwitcherModHeld = (GetAsyncKeyState(Config::currentConfiguration.allAppsSwitcherMod) & 0x8000);
+                if (allAppsSwitcherModHeld && pKeyBoard->vkCode == Config::currentConfiguration.allAppsSwitcherKey) {
+                    activeSwitcherMod = Config::currentConfiguration.allAppsSwitcherMod;
+                    AppCycleSwitcher(Config::currentConfiguration.allAppsSwitcherMod, SwitcherMode::AllApps);
                     return 1;
                 }
 
-                bool sameAppsSwitcherModHeld = (GetAsyncKeyState(Config::sameAppsSwitcherMod) & 0x8000);
-                if (sameAppsSwitcherModHeld && pKeyBoard->vkCode == Config::sameAppsSwitcherKey) {
-                    activeSwitcherMod = Config::sameAppsSwitcherMod;
-                    AppCycleSwitcher(Config::sameAppsSwitcherMod, SwitcherMode::SameApp);
+                bool sameAppsSwitcherModHeld = (GetAsyncKeyState(Config::currentConfiguration.sameAppsSwitcherMod) & 0x8000);
+                if (sameAppsSwitcherModHeld && pKeyBoard->vkCode == Config::currentConfiguration.sameAppsSwitcherKey) {
+                    activeSwitcherMod = Config::currentConfiguration.sameAppsSwitcherMod;
+                    AppCycleSwitcher(Config::currentConfiguration.sameAppsSwitcherMod, SwitcherMode::SameApp);
                     return 1;
                 }
             }
-            if (Config::enableTabSwitcher) {
+            if (Config::currentConfiguration.enableTabSwitcher) {
                 if (wParam == WM_SYSKEYDOWN && pKeyBoard->vkCode >= '1' && pKeyBoard->vkCode <= '9') {
                     if (SwitchTabs(pKeyBoard->vkCode)) return 1;
                 }

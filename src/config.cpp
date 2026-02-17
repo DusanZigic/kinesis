@@ -4,57 +4,66 @@
 namespace fs = std::filesystem;
 
 namespace Config {
-    const std::vector<std::string> DEFAULT_TAB_APPS = {
-        "chrome.exe", "msedge.exe", "firefox.exe", 
-        "explorer.exe", "WindowsTerminal.exe"
+    const Configuration defaultConfiguration {
+        /*.enableTabSwitcher =*/ true,
+        /*.tabbedApps =*/ {"chrome.exe", "msedge.exe", "firefox.exe", "WindowsTerminal.exe", "explorer.exe"},
+        /*.tabbedAppsName =*/ {{"chrome.exe", "Google Chrome"}, {"msedge.exe", "Microsoft Edge"}, {"firefox.exe", "Firefox"}, {"WindowsTerminal.exe", "Terminal"}, {"explorer.exe", "File Explorer"}},
+        /*.enableVSCodeLauncher =*/ true,
+        /*.VSCodeLauncherKey =*/ 'V',
+        /*.enableWSLTerminalLauncher =*/ true,
+        /*.WSLTerminalLauncherKey =*/ 'L',
+        /*.enableTaskSwitcher =*/ true,
+        /*.allAppsSwitcherMod =*/ VK_MENU,
+        /*.allAppsSwitcherKey =*/ VK_TAB,
+        /*.sameAppsSwitcherMod =*/ VK_MENU,
+        /*.sameAppsSwitcherKey =*/ VK_OEM_3
     };
-    const std::map<std::string, std::string> APP_NAMES = {
-        {"chrome.exe", "Google Chrome"},
-        {"msedge.exe", "Microsoft Edge"},
-        {"firefox.exe", "Firefox"},
-        {"WindowsTerminal.exe", "Terminal"},
-        {"Code.exe", "VS Code"},
-        {"devenv.exe", "Visual Studio"},
-        {"explorer.exe", "File Explorer"},
-        {"spotify.exe", "Spotify"},
-        {"discord.exe", "Discord"}
-    };
-    bool enableTabSwitcher;
-    std::set<std::string> tabbedApps;
+    Configuration currentConfiguration;
 
-    bool enableVSCodeLauncher;
-    unsigned int VSCodeLauncherKey;
-
-    bool enableWSLTerminalLauncher;
-    unsigned int WSLTerminalLauncherKey;
-
-    bool enableTaskSwitcher;
-    unsigned int allAppsSwitcherMod;
-    unsigned int allAppsSwitcherKey;
-    unsigned int sameAppsSwitcherMod;
-    unsigned int sameAppsSwitcherKey;
-
-    void ApplyHardcodedDefaults() {
-        enableTabSwitcher = true;
-        tabbedApps.clear();
-        for (const auto& app : DEFAULT_TAB_APPS) {
-            tabbedApps.insert(app);
-        }
+    static unsigned int StringToVK(const std::string& s) {
+        std::string upper = ToUpper(s);
+        if (upper == "ALT")   return VK_MENU;
+        if (upper == "CTRL")  return VK_CONTROL;
+        if (upper == "SHIFT") return VK_SHIFT;
+        if (upper == "TAB")   return VK_TAB;
+        if (upper == "SPACE") return VK_SPACE;
+        if (upper == "TILDE") return VK_OEM_3;
         
-        enableVSCodeLauncher = true;
-        VSCodeLauncherKey = 'V';
-
-        enableWSLTerminalLauncher = true;
-        WSLTerminalLauncherKey = 'L';
-
-        enableTaskSwitcher = true;
-        allAppsSwitcherMod = VK_MENU;
-        allAppsSwitcherKey = VK_TAB;
-        sameAppsSwitcherMod = VK_MENU;
-        sameAppsSwitcherKey = VK_OEM_3;
+        return VkKeyScanA(s[0]) & 0xFF;
     }
 
-    std::string GetConfigPath() {
+    static std::string VkToString(unsigned int vk) {
+        switch (vk) {
+            case VK_MENU:    return "ALT";
+            case VK_CONTROL: return "CTRL";
+            case VK_SHIFT:   return "SHIFT";
+            case VK_TAB:     return "TAB";
+            case VK_SPACE:   return "SPACE";
+            case VK_OEM_3:   return "TILDE";
+        }
+
+        if ((vk >= '0' && vk <= '9') || (vk >= 'A' && vk <= 'Z')) {
+            return std::string(1, (char)vk);
+        }
+        
+        char name[64];
+        LONG scanCode = MapVirtualKeyA(vk, MAPVK_VK_TO_VSC);
+    
+        if (vk == VK_INSERT || vk == VK_DELETE || vk == VK_HOME || vk == VK_END ||
+            vk == VK_PRIOR  || vk == VK_NEXT   || vk == VK_LEFT || vk == VK_RIGHT ||
+            vk == VK_UP     || vk == VK_DOWN) 
+        {
+            scanCode |= 0x100;
+        }
+
+        if (GetKeyNameTextA(scanCode << 16, name, sizeof(name))) {
+            return std::string(name);
+        }
+
+        return "UNKNOWN";
+    }
+
+    static std::string GetConfigPath() {
         std::string baseAppPath = GetKnownFolderPath(FOLDERID_LocalAppData);
         if (!baseAppPath.empty()) {
             std::string kinesisPath = baseAppPath + "\\Kinesis";
@@ -66,42 +75,40 @@ namespace Config {
         return "config.jsonc";
     }
 
-    void SaveDefaultConfig(const std::string& fullPath) {
+    static void SaveConfig(const std::string& fullPath, const Configuration& configuration) {
         std::ofstream file(fullPath);
         if (!file.is_open()) return;
-        
-        ApplyHardcodedDefaults();
 
         file << "{\n";
         
-        file << "  // Enable or disable the Alt+Number tab switching and list of apps that should use it\n"
-             << "  \"enableTabSwitcher\": true,\n"
-             << "  \"tabbedApps\": [";        
-        size_t i = 0;
-        for (const auto& app : tabbedApps) {
-            file << "\"" << app << "\"";
-            if (++i < tabbedApps.size()) file << ", ";
-        }        
-        file << "],\n\n";
-        
-        file << "  // Enable or disable VS Code launcher and shortcuts (Mandatory: Ctrl + Alt + Key)\n"
-             << "  \"enableVSCodeLauncher\": true,\n"
-             << "  \"VSCodeLauncherKey\": \"V\",\n\n";
-        
-        file << "  // Enable or disable WSL terminal launcher and shortcuts (Mandatory: Ctrl + Alt + Key)\n"
-             << "  \"enableWSLTerminalLauncher\": true,\n"
-             << "  \"WSLTerminalLauncherKey\": \"L\",\n\n";
-            
-        file << "  // Enable or disable Task Switcher\n"
-             << "  \"enableTaskSwitcher\": true,\n\n";
+        file << "  // Enable or disable Task Switcher\n";
+        file << "  \"enableTaskSwitcher\": "<< std::boolalpha << configuration.enableTaskSwitcher << ",\n\n";
         
         file << "  // All apps task switcher\n"
-             << "  \"allAppsSwitcherMod\": \"ALT\",\n"
-             << "  \"allAppsSwitcherKey\": \"TAB\",\n\n";
+             << "  \"allAppsSwitcherMod\": \"" << VkToString(configuration.allAppsSwitcherMod) << "\",\n"
+             << "  \"allAppsSwitcherKey\": \"" << VkToString(configuration.allAppsSwitcherKey) << "\",\n\n";
 
         file << "  // Same app / cluster task switcher\n"
-             << "  \"sameAppsSwitcherMod\": \"ALT\",\n"
-             << "  \"sameAppsSwitcherKey\": \"TILDE\"\n";
+             << "  \"sameAppsSwitcherMod\": \"" << VkToString(configuration.sameAppsSwitcherMod) << "\",\n"
+             << "  \"sameAppsSwitcherKey\": \"" << VkToString(configuration.sameAppsSwitcherKey) << "\",\n";
+             
+        file << "  // Enable or disable VS Code launcher and shortcuts (Mandatory: Ctrl + Alt + Key)\n";
+        file << "  \"enableVSCodeLauncher\": "<< std::boolalpha << configuration.enableVSCodeLauncher << ",\n";
+        file << "  \"VSCodeLauncherKey\": \"" << static_cast<char>(configuration.VSCodeLauncherKey) << "\",\n\n";
+        
+        file << "  // Enable or disable WSL terminal launcher and shortcuts (Mandatory: Ctrl + Alt + Key)\n";
+        file << "  \"enableWSLTerminalLauncher\": " << std::boolalpha << configuration.enableWSLTerminalLauncher << ",\n";
+        file << "  \"WSLTerminalLauncherKey\": \"" << static_cast<char>(configuration.WSLTerminalLauncherKey) << "\",\n\n";
+             
+        file << "  // Enable or disable the Alt+Number tab switching and list of apps that should use it\n";
+        file << "  \"enableTabSwitcher\": "<< std::boolalpha << configuration.enableTabSwitcher << ",\n";
+        file << "  \"tabbedApps\": [";        
+        size_t i = 0;
+        for (const auto& app : configuration.tabbedApps) {
+            file << "\"" << app << "\"";
+            if (++i < configuration.tabbedApps.size()) file << ", ";
+        }        
+        file << "]\n\n";
 
         file << "}";
         
@@ -115,11 +122,11 @@ namespace Config {
 
     void DefaultConfig() {
         std::string configPath = GetConfigPath();
-        SaveDefaultConfig(configPath);
+        SaveConfig(configPath, defaultConfiguration);
         LoadConfig();
     }
 
-    std::string CleanValue(std::string s) {
+    static std::string CleanValue(std::string s) {
         s.erase(std::remove(s.begin(), s.end(), '\"'), s.end());
         s.erase(std::remove(s.begin(), s.end(), ' '), s.end());
         s.erase(std::remove(s.begin(), s.end(), ','), s.end());
@@ -128,36 +135,24 @@ namespace Config {
         return s;
     }
 
-    unsigned int StringToVK(const std::string& s) {
-        std::string upper = ToUpper(s);
-        if (upper == "ALT")   return VK_MENU;
-        if (upper == "CTRL")  return VK_CONTROL;
-        if (upper == "SHIFT") return VK_SHIFT;
-        if (upper == "TAB")   return VK_TAB;
-        if (upper == "SPACE") return VK_SPACE;
-        if (upper == "TILDE") return 192;
-        
-        return VkKeyScanA(s[0]) & 0xFF;
-}
-
-    void AssignSetting(const std::string& key, const std::string& value) {
+    static void AssignSetting(const std::string& key, const std::string& value) {
         std::string cleanValue = CleanValue(value);
         
-        if      (key == "enableTabSwitcher")         enableTabSwitcher         = (cleanValue == "true");
-        else if (key == "enableVSCodeLauncher")      enableVSCodeLauncher      = (cleanValue == "true");
-        else if (key == "enableWSLTerminalLauncher") enableWSLTerminalLauncher = (cleanValue == "true");
-        else if (key == "enableTaskSwitcher")        enableTaskSwitcher        = (cleanValue == "true");
+        if      (key == "enableTabSwitcher")         currentConfiguration.enableTabSwitcher         = (cleanValue == "true");
+        else if (key == "enableVSCodeLauncher")      currentConfiguration.enableVSCodeLauncher      = (cleanValue == "true");
+        else if (key == "enableWSLTerminalLauncher") currentConfiguration.enableWSLTerminalLauncher = (cleanValue == "true");
+        else if (key == "enableTaskSwitcher")        currentConfiguration.enableTaskSwitcher        = (cleanValue == "true");
         
-        else if (key == "VSCodeLauncherKey")      VSCodeLauncherKey      = StringToVK(cleanValue);
-        else if (key == "WSLTerminalLauncherKey") WSLTerminalLauncherKey = StringToVK(cleanValue);
-        else if (key == "allAppsSwitcherMod")     allAppsSwitcherMod     = StringToVK(cleanValue);
-        else if (key == "allAppsSwitcherKey")     allAppsSwitcherKey     = StringToVK(cleanValue);
-        else if (key == "sameAppsSwitcherMod")    sameAppsSwitcherMod    = StringToVK(cleanValue);
-        else if (key == "sameAppsSwitcherKey")    sameAppsSwitcherKey    = StringToVK(cleanValue);
+        else if (key == "VSCodeLauncherKey")      currentConfiguration.VSCodeLauncherKey      = StringToVK(cleanValue);
+        else if (key == "WSLTerminalLauncherKey") currentConfiguration.WSLTerminalLauncherKey = StringToVK(cleanValue);
+        else if (key == "allAppsSwitcherMod")     currentConfiguration.allAppsSwitcherMod     = StringToVK(cleanValue);
+        else if (key == "allAppsSwitcherKey")     currentConfiguration.allAppsSwitcherKey     = StringToVK(cleanValue);
+        else if (key == "sameAppsSwitcherMod")    currentConfiguration.sameAppsSwitcherMod    = StringToVK(cleanValue);
+        else if (key == "sameAppsSwitcherKey")    currentConfiguration.sameAppsSwitcherKey    = StringToVK(cleanValue);
     }
 
-    void ParseTabbedApps(const std::string& val) {
-        tabbedApps.clear();
+    static void ParseTabbedApps(const std::string& val) {
+        currentConfiguration.tabbedApps.clear();
         size_t start = val.find("[");
         size_t end = val.find("]");
         if (start != std::string::npos && end != std::string::npos) {
@@ -167,7 +162,7 @@ namespace Config {
             while (std::getline(ss, item, ',')) {
                 std::string cleaned = CleanValue(item);
                 if (!cleaned.empty()) {
-                    tabbedApps.insert(cleaned);
+                    currentConfiguration.tabbedApps.insert(cleaned);
                 }
             }
         }
@@ -178,11 +173,10 @@ namespace Config {
         std::ifstream file(configPath);
 
         if (!file.is_open()) {
-            SaveDefaultConfig(configPath);
+            SaveConfig(configPath, defaultConfiguration);
+            currentConfiguration = defaultConfiguration;
             return;
         }
-
-        tabbedApps.clear();
 
         std::string line;
         while (std::getline(file, line)) {
@@ -203,5 +197,9 @@ namespace Config {
 
         }
         return;
+    }
+
+    void setUIConfig(Configuration& configuration) {
+        configuration = currentConfiguration;
     }
 }

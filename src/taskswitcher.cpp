@@ -625,8 +625,8 @@ void AppCycleSwitcher(DWORD vkCode, SwitcherMode requestedMode) {
     }
 
     if (currentMode != SwitcherMode::None && !sessionWindows.empty()) {
-        bool isAllAppMode  = (currentMode == SwitcherMode::AllApps && vkCode == Config::allAppsSwitcherKey);
-        bool isSameAppMode = (currentMode == SwitcherMode::SameApp && vkCode == Config::sameAppsSwitcherKey);
+        bool isAllAppMode  = (currentMode == SwitcherMode::AllApps && vkCode == Config::currentConfiguration.allAppsSwitcherKey);
+        bool isSameAppMode = (currentMode == SwitcherMode::SameApp && vkCode == Config::currentConfiguration.sameAppsSwitcherKey);
 
         if (isAllAppMode || isSameAppMode) {
             sessionIndex = (sessionIndex + 1) % sessionWindows.size();

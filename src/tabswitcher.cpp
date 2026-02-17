@@ -7,7 +7,7 @@ bool SwitchTabs(DWORD vkCode) {
     DWORD processId;
     GetWindowThreadProcessId(activeWindow, &processId);
     std::string windowProcessName = GetProcessName(processId);
-    if (Config::tabbedApps.count(windowProcessName)) {
+    if (Config::currentConfiguration.tabbedApps.count(windowProcessName)) {
         INPUT inputs[8] {};
         // logically release ALT
         inputs[0].type       = INPUT_KEYBOARD;

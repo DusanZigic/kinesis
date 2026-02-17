@@ -1,26 +1,28 @@
 #pragma once
 
 namespace Config {
-    extern const std::vector<std::string> DEFAULT_TAB_APPS;
-    extern const std::map<std::string, std::string> APP_NAMES;
-    extern bool enableTabSwitcher;
-    extern std::set<std::string> tabbedApps;
+    struct Configuration {
+        bool enableTabSwitcher;
+        std::set<std::string> tabbedApps;
+        std::map<std::string, std::string> tabbedAppsNames;
 
-    extern bool enableVSCodeLauncher;
-    extern unsigned int VSCodeLauncherKey;
+        bool enableVSCodeLauncher;
+        unsigned int VSCodeLauncherKey;
+        
+        bool enableWSLTerminalLauncher;
+        unsigned int WSLTerminalLauncherKey;
+        
+        bool enableTaskSwitcher;
+        unsigned int allAppsSwitcherMod;
+        unsigned int allAppsSwitcherKey;
+        unsigned int sameAppsSwitcherMod;
+        unsigned int sameAppsSwitcherKey;
+    };
+    extern const Configuration defaultConfiguration;
+    extern Configuration currentConfiguration;
 
-    extern bool enableWSLTerminalLauncher;
-    extern unsigned int WSLTerminalLauncherKey;
-
-    extern bool enableTaskSwitcher;
-    extern unsigned int allAppsSwitcherMod;
-    extern unsigned int allAppsSwitcherKey;
-    extern unsigned int sameAppsSwitcherMod;
-    extern unsigned int sameAppsSwitcherKey;
-
-    std::string GetConfigPath();
-    void SaveDefaultConfig(const std::string& fullPath);
-    void LoadConfig();
-    void OpenConfig();
     void DefaultConfig();
+    void OpenConfig();
+    void LoadConfig();
+    void setUIConfig(Configuration& configuration);
 }
