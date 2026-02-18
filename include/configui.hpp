@@ -4,6 +4,7 @@ namespace ConfigUI {
     struct LayoutMetrics {
         int windowW, windowH;
         int windowX, windowY;
+        int headerHeight;
         int paddingX;
         int upperMargin, rowHeight, sectionSpacing;
         int fontSizeLabel, fontSizeKeyBinding, fontSizeCheckBox, fontSizeDescription;

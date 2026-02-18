@@ -47,6 +47,8 @@ namespace ConfigUI {
         layoutMetrics.windowY = (screenH - layoutMetrics.windowH) / 2;
         layoutMetrics.windowX = (screenW - layoutMetrics.windowW) / 2;
 
+        layoutMetrics.headerHeight = (int)(20 * layoutMetrics.scale);
+
         layoutMetrics.paddingX = (int)(30 * layoutMetrics.scale);
 
         layoutMetrics.upperMargin    = (int)(32 * layoutMetrics.scale);
@@ -70,7 +72,7 @@ namespace ConfigUI {
         layoutMetrics.footerHeight = (int)(60 * layoutMetrics.scale);
         layoutMetrics.footerTop    = layoutMetrics.windowH - layoutMetrics.footerHeight;
 
-        layoutMetrics.contentVisibleHeight = layoutMetrics.windowH - layoutMetrics.footerHeight;
+        layoutMetrics.contentVisibleHeight = layoutMetrics.windowH - layoutMetrics.footerHeight - layoutMetrics.headerHeight;
 
         layoutMetrics.borderPenWidth    = 1.5f * (float)layoutMetrics.scale;
         layoutMetrics.separatorPenWidth = 1.0f * (float)layoutMetrics.scale;
@@ -92,9 +94,12 @@ namespace ConfigUI {
     }
 
     static void RegisterZone(int x, int y, int w, int h, ControlType type, void* target) {
-        if (type == ControlType::BUTTON || type == ControlType::SCROLLBAR || (y + h < layoutMetrics.footerTop && y > 0)) {
-            RECT r = {x, y, x + w, y + h};
-            clickZones.push_back({r, type, target});
+        if (type == ControlType::BUTTON && y > layoutMetrics.footerTop) {
+            clickZones.push_back({{x, y, x + w, y + h}, type, target});
+            return;
+        }
+        if (y >= layoutMetrics.headerHeight && y + h <= layoutMetrics.footerTop) {
+            clickZones.push_back({{x, y, x + w, y + h}, type, target});
         }
     }
 
@@ -342,14 +347,14 @@ namespace ConfigUI {
         float ratio = visibleH / totalH;
 
         int barH = (int)(visibleH * ratio);
-        int barY = (int)(currentScrollY * ratio);
+        int barY = (int)(layoutMetrics.headerHeight + currentScrollY * ratio);
         int barX = layoutMetrics.windowW - layoutMetrics.scrollBarW - layoutMetrics.scrollBarMargin;
 
         RegisterZone(
             barX - layoutMetrics.scrollBarMargin,
             barY + layoutMetrics.scrollBarLowerPadding,
             layoutMetrics.scrollBarW + layoutMetrics.scrollBarMargin,
-            barH - layoutMetrics.scrollBarUpperPadding,
+            barH - layoutMetrics.headerHeight,
             ControlType::SCROLLBAR,
             nullptr
         );
@@ -390,7 +395,14 @@ namespace ConfigUI {
         graphics.Clear(COL_BG);        
         clickZones.clear();
 
-        Gdiplus::Region contentRegion(Gdiplus::Rect(0, 0, layoutMetrics.windowW, layoutMetrics.contentVisibleHeight));
+        Gdiplus::Pen gripPen(COL_SURFACE, 2.0f);
+        int centerX = layoutMetrics.windowW / 2;
+        int gripW = 30;
+        graphics.DrawLine(&gripPen, centerX - gripW, 10, centerX + gripW, 10);
+        graphics.DrawLine(&gripPen, centerX - gripW, 15, centerX + gripW, 15);
+
+        Gdiplus::Rect contentRect(0, layoutMetrics.headerHeight, layoutMetrics.windowW, layoutMetrics.contentVisibleHeight);
+        Gdiplus::Region contentRegion(contentRect);
         graphics.SetClip(&contentRegion);
 
         int yOffset = layoutMetrics.upperMargin - (int)currentScrollY;
@@ -430,6 +442,16 @@ namespace ConfigUI {
         maxScroll = absoluteBottom - layoutMetrics.contentVisibleHeight > 0 ? absoluteBottom - layoutMetrics.contentVisibleHeight : 0;
 
         graphics.ResetClip();
+
+        Gdiplus::Pen linePen(COL_SURFACE, 1.0f);
+        graphics.DrawLine(&linePen, 0, layoutMetrics.headerHeight, layoutMetrics.windowW, layoutMetrics.headerHeight);
+        Gdiplus::LinearGradientBrush shadowBrush(
+            Gdiplus::Point(0, layoutMetrics.headerHeight),
+            Gdiplus::Point(0, layoutMetrics.headerHeight + 10),
+            Gdiplus::Color(50, 0, 0, 0),
+            Gdiplus::Color(0, 0, 0, 0)
+        );
+        graphics.FillRectangle(&shadowBrush, 0, layoutMetrics.headerHeight, layoutMetrics.windowW, 10);
 
         DrawCustomScrollbar(graphics);
 
@@ -561,7 +583,12 @@ namespace ConfigUI {
                 if (hit == HTCLIENT) {
                     POINT pt = {GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
                     ScreenToClient(hWnd, &pt);
-                    if (pt.y < 40) return HTCAPTION;
+                    if (pt.y < layoutMetrics.headerHeight) {
+                        int scrollReserved = layoutMetrics.scrollBarW + (layoutMetrics.scrollBarMargin * 2);
+                        if (pt.x < (layoutMetrics.windowW - scrollReserved)) {
+                            return HTCAPTION;
+                        }
+                    }
                 }
                 return hit;
             }
@@ -632,6 +659,13 @@ namespace ConfigUI {
                 ReleaseCapture();
                 InvalidateRect(hWnd, NULL, FALSE);
                 return 0;
+            }
+            case WM_SETCURSOR: {
+                if (LOWORD(lParam) == HTCAPTION) {
+                    SetCursor(LoadCursor(NULL, IDC_SIZEALL));
+                    return TRUE;
+                }
+                return DefWindowProc(hWnd, msg, wParam, lParam);
             }
             case WM_TIMER: {
                 if (wParam == 1) {
