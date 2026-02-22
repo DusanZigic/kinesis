@@ -40,21 +40,27 @@ void HandleTrayCleanup(HWND hGhostWnd) {
 }
 
 void ShowTrayMenu(HWND hGhostWnd) {
-    HMENU hMenu = CreatePopupMenu();
-    if (hMenu) {
+    HMENU hMenu    = CreatePopupMenu();
+    HMENU hSubMenu = CreatePopupMenu();
+    if (hMenu && hSubMenu) {
         bool isOnStartup = SystemState::IsOnStartupEnabled();
         bool isAdminRun  = SystemState::IsRunAsAdminEnabled();
 
-        AppendMenuA(hMenu, MF_STRING | (isOnStartup ? MF_CHECKED : MF_UNCHECKED), ID_STARTUP_TOGGLE, "On Startup");
-        AppendMenuA(hMenu, MF_STRING | (isAdminRun  ? MF_CHECKED : MF_UNCHECKED), ID_ADMIN_TOGGLE,   "As Admin");
-        AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
-        AppendMenuA(hMenu, MF_STRING,    ID_OPEN_CONFIG_UI, "Open Configuration UI");
-        AppendMenuA(hMenu, MF_STRING,    ID_EDIT_CONFIG,    "Edit Configuration File");
-        AppendMenuA(hMenu, MF_STRING,    ID_RELOAD_CONFIG,  "Reload Configuration File");
-        AppendMenuA(hMenu, MF_STRING,    ID_DEFAULT_CONFIG, "Restore Configuration Defaults");
-        AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
-        AppendMenuA(hMenu, MF_STRING,    ID_EXIT, "Quit Kinesis");
+        AppendMenuW(hMenu, MF_STRING, ID_OPEN_CONFIG_UI, L"Open Configuration UI");
+        AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
 
+        AppendMenuW(hSubMenu, MF_STRING | (isOnStartup ? MF_CHECKED : MF_UNCHECKED), ID_STARTUP_TOGGLE, L"On Startup");
+        AppendMenuW(hSubMenu, MF_STRING | (isAdminRun  ? MF_CHECKED : MF_UNCHECKED), ID_ADMIN_TOGGLE,   L"As Admin");
+        AppendMenuW(hSubMenu, MF_SEPARATOR, 0, NULL);
+        AppendMenuW(hSubMenu, MF_STRING, ID_EDIT_CONFIG,   L"Edit Configuration File");
+        AppendMenuW(hSubMenu, MF_STRING, ID_RELOAD_CONFIG, L"Reload Configuration File");
+        AppendMenuW(hSubMenu, MF_SEPARATOR, 0, NULL);        
+        AppendMenuW(hSubMenu, MF_STRING, ID_DEFAULT_CONFIG, L"Restore Configuration Defaults");
+        AppendMenuW(hMenu, MF_POPUP, (UINT_PTR)hSubMenu, L"Advanced");
+
+        AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
+        AppendMenuW(hMenu, MF_STRING,    ID_EXIT, L"Quit Kinesis");
+        
         POINT curPoint;
         GetCursorPos(&curPoint);
         SetForegroundWindow(hGhostWnd);
