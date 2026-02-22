@@ -199,6 +199,9 @@ namespace Config {
             }
 
         }
+        
+        currentConfiguration.tabbedAppsNames = defaultConfiguration.tabbedAppsNames;
+
         return;
     }
 
