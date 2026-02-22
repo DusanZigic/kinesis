@@ -618,10 +618,7 @@ namespace ConfigUI {
                     POINT pt = {GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
                     ScreenToClient(hWnd, &pt);
                     if (pt.y < layoutMetrics.headerHeight) {
-                        int scrollReserved = layoutMetrics.scrollBarW + (layoutMetrics.scrollBarMargin * 2);
-                        if (pt.x < (layoutMetrics.windowW - scrollReserved)) {
-                            return HTCAPTION;
-                        }
+                        return HTCAPTION;
                     }
                 }
                 return hit;
