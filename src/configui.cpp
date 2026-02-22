@@ -4,7 +4,8 @@
 
 namespace ConfigUI {
     static HWND hConfigWindow = NULL;
-    static const char* szClassName = "KinesisConfigWindow";
+    static bool isWndClassRegistered = false;
+    static const wchar_t* szClassName = L"KinesisConfigWindow";
 
     const Gdiplus::Color COL_BG(255, 30, 30, 30);
     const Gdiplus::Color COL_SURFACE(255, 45, 45, 45);
@@ -448,7 +449,7 @@ namespace ConfigUI {
             currentX += layoutMetrics.checkBoxColumnWidth;
             i++;
         }
-        yOffset += layoutMetrics.rowHeight;
+        yOffset += layoutMetrics.rowHeight;          
 
         int absoluteBottom = yOffset + currentScrollY + (int)(20 * layoutMetrics.scale);
         maxScroll = absoluteBottom - layoutMetrics.contentVisibleHeight > 0 ? absoluteBottom - layoutMetrics.contentVisibleHeight : 0;
@@ -486,17 +487,20 @@ namespace ConfigUI {
         switch (msg) {
             case WM_CLOSE: {
                 DestroyWindow(hWnd);
-                hConfigWindow = NULL;
                 return 0;
             }
             case WM_DESTROY: {
-                currentlyRecording = nullptr;
+                hConfigWindow       = nullptr;
+                currentlyRecording  = nullptr;
                 pressedButtonTarget = nullptr;
-                hoveredTarget = nullptr;
+                hoveredTarget       = nullptr;
+
                 fontAssets.Release();
                 KillTimer(hWnd, 1);
+                
                 currentScrollY = 0.0f;
                 targetScrollY = 0.0f;
+                
                 return 0;
             }
             case WM_PAINT: {
@@ -711,8 +715,9 @@ namespace ConfigUI {
             case WM_KILLFOCUS: {
                 isDraggingScroll = false;
                 isScrollHovered = false;
-                hoveredTarget = nullptr;
                 currentlyRecording = nullptr;
+                pressedButtonTarget = nullptr;
+                hoveredTarget = nullptr;
                 ReleaseCapture();
                 InvalidateRect(hWnd, NULL, FALSE);
                 return 0;
@@ -741,24 +746,35 @@ namespace ConfigUI {
                 return 1;
             }
         }
-        return DefWindowProc(hWnd, msg, wParam, lParam);
+        return DefWindowProcW(hWnd, msg, wParam, lParam);
     }
 
     void OpenConfigUI() {
-        if (hConfigWindow) {
-            ShowWindow(hConfigWindow, SW_SHOW);
+        if (hConfigWindow && IsWindow(hConfigWindow)) {
+            ShowWindow(hConfigWindow, SW_RESTORE);
             SetForegroundWindow(hConfigWindow);
             return;
         }
 
-        WNDCLASSEXA wc {};
-        wc.cbSize = sizeof(WNDCLASSEX);
-        wc.lpfnWndProc = WndProc;
-        wc.hInstance = GetModuleHandle(NULL);
-        wc.lpszClassName = szClassName;
-        wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-        wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
-        RegisterClassExA(&wc);
+        if (!isWndClassRegistered) {
+            WNDCLASSEXW wc {};
+            wc.cbSize = sizeof(WNDCLASSEXW);
+            wc.style = CS_HREDRAW | CS_VREDRAW;
+            wc.lpfnWndProc = WndProc;
+            wc.cbClsExtra = 0;
+            wc.cbWndExtra = 0;
+            wc.hInstance = GetModuleHandle(NULL);
+            wc.hIcon = LoadIcon(NULL, IDI_APPLICATION);
+            wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+            wc.hbrBackground = NULL;
+            wc.lpszMenuName = NULL;
+            wc.lpszClassName = szClassName;
+            wc.hIconSm = LoadIcon(NULL, IDI_APPLICATION);
+
+            if (RegisterClassExW(&wc)) {
+                isWndClassRegistered = true;
+            }
+        }
 
         UpdateLayoutMetrics();
         UpdateFonts();
@@ -766,10 +782,10 @@ namespace ConfigUI {
         targetScrollY = 0.0f;
         Config::SetUIConfig(uiDraftConfig);
 
-        hConfigWindow = CreateWindowExA(
+        hConfigWindow = CreateWindowExW(
             WS_EX_APPWINDOW | WS_EX_LAYERED,
             szClassName,
-            "Kinesis Configuration",
+            L"Kinesis Configuration",
             WS_POPUP | WS_VISIBLE | WS_SYSMENU,
             layoutMetrics.windowX, layoutMetrics.windowY,
             layoutMetrics.windowW, layoutMetrics.windowH,
