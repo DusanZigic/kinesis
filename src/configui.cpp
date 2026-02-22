@@ -764,12 +764,12 @@ namespace ConfigUI {
             wc.cbClsExtra = 0;
             wc.cbWndExtra = 0;
             wc.hInstance = GetModuleHandle(NULL);
-            wc.hIcon = LoadIcon(NULL, IDI_APPLICATION);
+            wc.hIcon = LoadIconW(GetModuleHandle(NULL), MAKEINTRESOURCEW(1));
             wc.hCursor = LoadCursor(NULL, IDC_ARROW);
             wc.hbrBackground = NULL;
             wc.lpszMenuName = NULL;
             wc.lpszClassName = szClassName;
-            wc.hIconSm = LoadIcon(NULL, IDI_APPLICATION);
+            wc.hIconSm = LoadIconW(GetModuleHandle(NULL), MAKEINTRESOURCEW(1));
 
             if (RegisterClassExW(&wc)) {
                 isWndClassRegistered = true;
