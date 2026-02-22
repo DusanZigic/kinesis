@@ -19,23 +19,22 @@ namespace ConfigUI {
     static FontAssets fontAssets;
 
     static std::vector<ClickZone> clickZones;
-    ControlType hoveredType;
 
     static void* currentlyRecording = nullptr;
-    static void* hoveredTarget = nullptr;
     static void* pressedButtonTarget = nullptr;
+    static void* hoveredTarget = nullptr;
 
     static float currentScrollY = 0.0f;
     static float targetScrollY = 0.0f;
     static int maxScroll = 0;
     static const int SCROLL_STEP = 40;
     static const float LERP_FACTOR = 0.35f;
-    bool isDraggingScroll = false;
-    int dragStartY = 0;
-    float scrollStartPos = 0.0f;
-    bool isScrollHovered;
+    static bool isDraggingScroll = false;
+    static int dragStartY = 0;
+    static float scrollStartPos = 0.0f;
+    static bool isScrollHovered;
 
-    Config::Configuration uiDraftConfig;
+    static Config::Configuration uiDraftConfig;
 
     static void UpdateLayoutMetrics() {
         int screenW = GetSystemMetrics(SM_CXSCREEN);
