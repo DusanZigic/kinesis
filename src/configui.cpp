@@ -455,24 +455,31 @@ namespace ConfigUI {
 
         graphics.ResetClip();
 
-        Gdiplus::Pen linePen(COL_SURFACE, 1.0f);
-        graphics.DrawLine(&linePen, 0, layoutMetrics.headerHeight, layoutMetrics.windowW, layoutMetrics.headerHeight);
-        Gdiplus::LinearGradientBrush shadowBrush(
+        Gdiplus::Pen headerLinePen(COL_SURFACE, 1.0f);
+        graphics.DrawLine(&headerLinePen, 0, layoutMetrics.headerHeight, layoutMetrics.windowW, layoutMetrics.headerHeight);
+        Gdiplus::LinearGradientBrush headerShadowBrush(
             Gdiplus::Point(0, layoutMetrics.headerHeight),
             Gdiplus::Point(0, layoutMetrics.headerHeight + 10),
             Gdiplus::Color(50, 0, 0, 0),
             Gdiplus::Color(0, 0, 0, 0)
         );
-        graphics.FillRectangle(&shadowBrush, 0, layoutMetrics.headerHeight, layoutMetrics.windowW, 10);
+        graphics.FillRectangle(&headerShadowBrush, 0, layoutMetrics.headerHeight, layoutMetrics.windowW, 10);
 
-        DrawCustomScrollbar(graphics);
-
-        Gdiplus::Pen separatorPen(COL_SEPARATOR, layoutMetrics.separatorPenWidth);
-        graphics.DrawLine(&separatorPen, 0, layoutMetrics.footerTop, layoutMetrics.windowW, layoutMetrics.footerTop);
-
+        Gdiplus::Pen footerLinePen(COL_SURFACE, 1.0f);
+        graphics.DrawLine(&footerLinePen, 0, layoutMetrics.footerTop, layoutMetrics.windowW, layoutMetrics.footerTop);
+        Gdiplus::LinearGradientBrush footerShadowBrush(
+            Gdiplus::Point(0, layoutMetrics.footerTop),
+            Gdiplus::Point(0, layoutMetrics.footerTop - 10),
+            Gdiplus::Color(50, 0, 0, 0),
+            Gdiplus::Color(0, 0, 0, 0)
+        );
+        graphics.FillRectangle(&footerShadowBrush, 0, layoutMetrics.footerTop-10, layoutMetrics.windowW, 10);
+        
         Gdiplus::SolidBrush footerBg(COL_BG); 
         graphics.FillRectangle(&footerBg, 0, layoutMetrics.footerTop + 1, layoutMetrics.windowW, layoutMetrics.footerHeight);
         DrawFooterButtons(graphics);
+
+        DrawCustomScrollbar(graphics);
     }
 
     static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
