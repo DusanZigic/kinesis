@@ -47,7 +47,11 @@ namespace ConfigUI {
         layoutMetrics.windowY = (screenH - layoutMetrics.windowH) / 2;
         layoutMetrics.windowX = (screenW - layoutMetrics.windowW) / 2;
 
-        layoutMetrics.headerHeight = (int)(20 * layoutMetrics.scale);
+        layoutMetrics.headerHeight        = (int)(20 * layoutMetrics.scale);
+        layoutMetrics.headerGripWidth     = (int)(25 * layoutMetrics.scale);
+        layoutMetrics.headerGripHeight[0] = (int)( 5 * layoutMetrics.scale);
+        layoutMetrics.headerGripHeight[1] = (int)(10 * layoutMetrics.scale);
+        layoutMetrics.headerGripPenWidth  = 6.0f;
 
         layoutMetrics.paddingX = (int)(30 * layoutMetrics.scale);
 
@@ -405,11 +409,10 @@ namespace ConfigUI {
         graphics.Clear(COL_BG);        
         clickZones.clear();
 
-        Gdiplus::Pen gripPen(COL_SURFACE, 2.0f);
+        Gdiplus::Pen gripPen(COL_SURFACE, layoutMetrics.headerGripPenWidth);
         int centerX = layoutMetrics.windowW / 2;
-        int gripW = 30;
-        graphics.DrawLine(&gripPen, centerX - gripW, 10, centerX + gripW, 10);
-        graphics.DrawLine(&gripPen, centerX - gripW, 15, centerX + gripW, 15);
+        graphics.DrawLine(&gripPen, centerX - layoutMetrics.headerGripWidth, layoutMetrics.headerGripHeight[0], centerX + layoutMetrics.headerGripWidth, layoutMetrics.headerGripHeight[0]);
+        graphics.DrawLine(&gripPen, centerX - layoutMetrics.headerGripWidth, layoutMetrics.headerGripHeight[1], centerX + layoutMetrics.headerGripWidth, layoutMetrics.headerGripHeight[1]);
 
         Gdiplus::Rect contentRect(0, layoutMetrics.headerHeight, layoutMetrics.windowW, layoutMetrics.contentVisibleHeight);
         Gdiplus::Region contentRegion(contentRect);
