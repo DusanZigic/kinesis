@@ -490,6 +490,9 @@ namespace ConfigUI {
                 return 0;
             }
             case WM_DESTROY: {
+                currentlyRecording = nullptr;
+                pressedButtonTarget = nullptr;
+                hoveredTarget = nullptr;
                 fontAssets.Release();
                 KillTimer(hWnd, 1);
                 currentScrollY = 0.0f;
@@ -597,19 +600,30 @@ namespace ConfigUI {
             }
             case WM_KEYDOWN:
             case WM_SYSKEYDOWN: {
+                unsigned int vk = (unsigned int)wParam;                
                 if (currentlyRecording) {
-                    unsigned int* target = (unsigned int*)currentlyRecording;
-                    unsigned int vk = (unsigned int)wParam;
+                    if (vk == VK_ESCAPE) {
+                        currentlyRecording = nullptr;
+                        InvalidateRect(hWnd, NULL, FALSE);
+                        return 0;
+                    }
 
                     if (vk == VK_LMENU    || vk == VK_RMENU)    vk = VK_MENU;
                     if (vk == VK_LCONTROL || vk == VK_RCONTROL) vk = VK_CONTROL;
                     if (vk == VK_LSHIFT   || vk == VK_RSHIFT)   vk = VK_SHIFT;
 
+                    unsigned int* target = (unsigned int*)currentlyRecording;
                     *target = vk;                    
                     currentlyRecording = nullptr;
                     InvalidateRect(hWnd, NULL, FALSE);
                     return 0;
                 }
+
+                if (vk == VK_ESCAPE) {
+                    PostMessage(hWnd, WM_CLOSE, 0, 0);
+                    return 0;
+                }
+
                 break;
             }
             case WM_NCHITTEST: {
