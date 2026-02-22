@@ -499,9 +499,11 @@ namespace ConfigUI {
                 return 0;
             }
             case WM_LBUTTONDOWN: {
+                bool hitAnything = false;
                 POINT pt = {GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
                 for (const auto& zone : clickZones) {
                     if (PtInRect(&zone.area, pt)) {
+                        hitAnything = true;
                         switch (zone.type) {
                             case ControlType::KEYBOX: {
                                 currentlyRecording = zone.target;
@@ -509,12 +511,14 @@ namespace ConfigUI {
                                 break;
                             }
                             case ControlType::TOGGLE: {
+                                currentlyRecording = nullptr;
                                 bool* val = (bool*)zone.target;
                                 *val = !(*val);
                                 InvalidateRect(hWnd, NULL, FALSE);
                                 break;
                             }
                             case ControlType::CHECKBOX: {
+                                currentlyRecording = nullptr;
                                 std::string appName = *(std::string*)zone.target;
                                 if (uiDraftConfig.tabbedApps.count(appName)) {
                                     uiDraftConfig.tabbedApps.erase(appName);
@@ -525,6 +529,7 @@ namespace ConfigUI {
                                 break;
                             }
                             case ControlType::BUTTON: {
+                                currentlyRecording = nullptr;
                                 int buttonId = (int)(intptr_t)zone.target;
                                 switch (buttonId) {
                                     case 1:
@@ -543,6 +548,7 @@ namespace ConfigUI {
                                 break;
                             }
                             case ControlType::SCROLLBAR: {
+                                currentlyRecording = nullptr;
                                 isDraggingScroll = true;
                                 dragStartY = pt.y;
                                 scrollStartPos = targetScrollY;
@@ -554,6 +560,10 @@ namespace ConfigUI {
                         break;
                     }
                 }
+                if (!hitAnything) {
+                   currentlyRecording = nullptr;
+                }
+                InvalidateRect(hWnd, NULL, FALSE);
                 return 0;
             }
             case WM_LBUTTONUP: {
@@ -659,6 +669,7 @@ namespace ConfigUI {
                 isDraggingScroll = false;
                 isScrollHovered = false;
                 hoveredTarget = nullptr;
+                currentlyRecording = nullptr;
                 ReleaseCapture();
                 InvalidateRect(hWnd, NULL, FALSE);
                 return 0;
