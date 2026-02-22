@@ -57,17 +57,22 @@ namespace ConfigUI {
 
         layoutMetrics.toggleW = (int)(34 * layoutMetrics.scale);
         layoutMetrics.toggleH = (int)(14 * layoutMetrics.scale);
-        layoutMetrics.keyBoxW = (int)(36 * layoutMetrics.scale);
-        layoutMetrics.keyBoxH = (int)(20 * layoutMetrics.scale);
 
-        int twoKeysWidth  = 2*layoutMetrics.keyBoxW + layoutMetrics.paddingX;
+        layoutMetrics.keyBoxW = (int)(48 * layoutMetrics.scale);
+        layoutMetrics.keyBoxH = (int)(20 * layoutMetrics.scale);
+        
+        layoutMetrics.checkBoxColumnN     = 2;
+        layoutMetrics.checkBoxColumnWidth = (int)(200 * layoutMetrics.scale);
+        layoutMetrics.checkBoxSize        = (int)( 16 * layoutMetrics.scale);
+
+        int twoKeysWidth  = 2*layoutMetrics.keyBoxW;
         int reservedSpace = (twoKeysWidth > layoutMetrics.toggleW ? twoKeysWidth : layoutMetrics.toggleW) + (int)(20 * layoutMetrics.scale);
         layoutMetrics.labelWidth = (float)(layoutMetrics.windowW - layoutMetrics.paddingX - reservedSpace - layoutMetrics.paddingX);
 
-        layoutMetrics.fontSizeLabel       = (int)(11 * layoutMetrics.scale);
-        layoutMetrics.fontSizeKeyBinding  = (int)(10 * layoutMetrics.scale);
-        layoutMetrics.fontSizeCheckBox    = (int)(10 * layoutMetrics.scale);
-        layoutMetrics.fontSizeDescription = (int)( 9 * layoutMetrics.scale);
+        layoutMetrics.fontSizeLabel       = (int)(17 * layoutMetrics.scale);
+        layoutMetrics.fontSizeKeyBinding  = (int)(15 * layoutMetrics.scale);
+        layoutMetrics.fontSizeCheckBox    = (int)(15 * layoutMetrics.scale);
+        layoutMetrics.fontSizeDescription = (int)(14 * layoutMetrics.scale);
 
         layoutMetrics.footerHeight = (int)(60 * layoutMetrics.scale);
         layoutMetrics.footerTop    = layoutMetrics.windowH - layoutMetrics.footerHeight;
@@ -81,16 +86,16 @@ namespace ConfigUI {
         layoutMetrics.scrollBarMargin = (int)(4 * layoutMetrics.scale);
         layoutMetrics.scrollBarUpperPadding = (int)(5 * layoutMetrics.scale);
         layoutMetrics.scrollBarLowerPadding = (int)(10 * layoutMetrics.scale);
-        int reservedForScroll = (maxScroll > 0) ? (layoutMetrics.scrollBarW + layoutMetrics.scrollBarMargin * 2) : 0;
+        int reservedForScroll = layoutMetrics.scrollBarW + layoutMetrics.scrollBarMargin * 2;
         layoutMetrics.labelWidth -= (float)reservedForScroll;
     }
 
     static void UpdateFonts() {
         fontAssets.Release();
-        fontAssets.labelFont       = new Gdiplus::Font(L"Consolas", (float)layoutMetrics.fontSizeLabel);
-        fontAssets.keyBindingFont  = new Gdiplus::Font(L"Consolas", (float)layoutMetrics.fontSizeKeyBinding,  Gdiplus::FontStyleBold);
-        fontAssets.checkBoxFont    = new Gdiplus::Font(L"Consolas", (float)layoutMetrics.fontSizeCheckBox,    Gdiplus::FontStyleRegular);
-        fontAssets.descriptionFont = new Gdiplus::Font(L"Consolas", (float)layoutMetrics.fontSizeDescription, Gdiplus::FontStyleRegular);
+        fontAssets.labelFont       = new Gdiplus::Font(L"Consolas", (float)layoutMetrics.fontSizeLabel,       Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
+        fontAssets.keyBindingFont  = new Gdiplus::Font(L"Consolas", (float)layoutMetrics.fontSizeKeyBinding,  Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
+        fontAssets.checkBoxFont    = new Gdiplus::Font(L"Consolas", (float)layoutMetrics.fontSizeCheckBox,    Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
+        fontAssets.descriptionFont = new Gdiplus::Font(L"Consolas", (float)layoutMetrics.fontSizeDescription, Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
     }
 
     static void RegisterZone(int x, int y, int w, int h, ControlType type, void* target) {
@@ -203,10 +208,9 @@ namespace ConfigUI {
     static void AddAppCheckbox(Gdiplus::Graphics& graphics, const std::string& appName, int x, int y) {
         bool isChecked = (uiDraftConfig.tabbedApps.find(appName) != uiDraftConfig.tabbedApps.end());
     
-        int boxSize = (int)(16 * layoutMetrics.scale);
-        int boxY = y + (layoutMetrics.rowHeight - boxSize) / 2;
+        int boxY = y + (layoutMetrics.rowHeight - layoutMetrics.checkBoxSize) / 2;
     
-        Gdiplus::Rect rect(x, boxY, boxSize, boxSize);
+        Gdiplus::Rect rect(x, boxY, layoutMetrics.checkBoxSize, layoutMetrics.checkBoxSize);
         Gdiplus::Pen borderPen(isChecked ? COL_TEXT_BRIGHT : COL_HOVER, layoutMetrics.borderPenWidth);
     
         Gdiplus::GraphicsPath path;
@@ -224,7 +228,7 @@ namespace ConfigUI {
             graphics.FillPath(&accentBrush, &path); 
         }
 
-        int textX = x + boxSize + (int)(8 * layoutMetrics.scale);
+        int textX = x + layoutMetrics.checkBoxSize + (int)(8 * layoutMetrics.scale);
         std::string displayName = GetAppDisplayName(appName);
         DrawCheckBoxText(graphics, displayName, y, textX);
 
@@ -425,15 +429,14 @@ namespace ConfigUI {
         AddCheckBoxRow(graphics, "Tab switching active for:", yOffset);
         int startX = layoutMetrics.paddingX;
         int currentX = startX;
-        int colWidth = (int)(160 * layoutMetrics.scale);
         size_t i = 0;
         for (const auto& tabbedApp : Config::defaultConfiguration.tabbedApps) {
-            if (i > 0 && i % 2 == 0) {
+            if (i > 0 && i % layoutMetrics.checkBoxColumnN == 0) {
                 yOffset += layoutMetrics.rowHeight;
                 currentX = startX;
             }
             AddAppCheckbox(graphics, tabbedApp, currentX, yOffset);
-            currentX += colWidth;
+            currentX += layoutMetrics.checkBoxColumnWidth;
             i++;
         }
         yOffset += layoutMetrics.rowHeight;

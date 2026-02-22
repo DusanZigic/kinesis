@@ -10,6 +10,7 @@ namespace ConfigUI {
         int fontSizeLabel, fontSizeKeyBinding, fontSizeCheckBox, fontSizeDescription;
         int toggleW, toggleH;
         int keyBoxW, keyBoxH;
+        int checkBoxColumnN, checkBoxColumnWidth, checkBoxSize;
         float labelWidth;
         int footerHeight, footerTop;
         int contentVisibleHeight;
