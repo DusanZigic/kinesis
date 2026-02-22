@@ -11,6 +11,7 @@ namespace ConfigUI {
         int toggleW, toggleH;
         int keyBoxW, keyBoxH;
         int checkBoxColumnN, checkBoxColumnWidth, checkBoxSize;
+        int buttonWidth, buttonHeight;
         float labelWidth;
         int footerHeight, footerTop;
         int contentVisibleHeight;

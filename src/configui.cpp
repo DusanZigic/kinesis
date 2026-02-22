@@ -23,6 +23,7 @@ namespace ConfigUI {
 
     static void* currentlyRecording = nullptr;
     static void* hoveredTarget = nullptr;
+    static void* pressedButtonTarget = nullptr;
 
     static float currentScrollY = 0.0f;
     static float targetScrollY = 0.0f;
@@ -64,6 +65,9 @@ namespace ConfigUI {
         layoutMetrics.checkBoxColumnN     = 2;
         layoutMetrics.checkBoxColumnWidth = (int)(200 * layoutMetrics.scale);
         layoutMetrics.checkBoxSize        = (int)( 16 * layoutMetrics.scale);
+
+        layoutMetrics.buttonWidth  = (int)(100 * layoutMetrics.scale);
+        layoutMetrics.buttonHeight = (int)( 32 * layoutMetrics.scale);
 
         int twoKeysWidth  = 2*layoutMetrics.keyBoxW;
         int reservedSpace = (twoKeysWidth > layoutMetrics.toggleW ? twoKeysWidth : layoutMetrics.toggleW) + (int)(20 * layoutMetrics.scale);
@@ -284,33 +288,35 @@ namespace ConfigUI {
         yOffset += (int)(20 * layoutMetrics.scale);
     }
 
-    static void DrawFooterButtons(Gdiplus::Graphics& graphics, int windowWidth) {
-        int btnW = (int)(100 * layoutMetrics.scale);
-        int btnH = (int)(32 * layoutMetrics.scale);
-        int btnY = layoutMetrics.footerTop + (layoutMetrics.footerHeight - btnH) / 2;
+    static void DrawFooterButtons(Gdiplus::Graphics& graphics) {
+        int btnY = layoutMetrics.footerTop + (layoutMetrics.footerHeight - layoutMetrics.buttonHeight) / 2;
 
         int margin = (int)(20 * layoutMetrics.scale);
-        int exitX = windowWidth - btnW - margin;
-        int saveX = exitX - btnW - (int)(10 * layoutMetrics.scale);
-        int defX  = saveX - btnW - (int)(10 * layoutMetrics.scale);
+        int exitX = layoutMetrics.windowW - layoutMetrics.buttonWidth - margin;
+        int saveX = exitX - layoutMetrics.buttonWidth - (int)(10 * layoutMetrics.scale);
+        int defX  = saveX - layoutMetrics.buttonWidth - (int)(10 * layoutMetrics.scale);
 
         auto DrawBtn = [&](int x, int y, int w, int h, const std::string& label, void* target, int type) {
-            Gdiplus::Rect rect(x, y, w, h);
             bool isHovered = (hoveredTarget == target);
+            bool isPressed = (pressedButtonTarget == target);
 
             Gdiplus::Color bgCol, txtCol;
+            int buttonOffset;
 
             if (type == 2) {
                 bgCol = isHovered ? COL_TEXT_BRIGHT : COL_SELECTED;
                 txtCol = COL_BG;
+                buttonOffset = isPressed ? (int)(2 * layoutMetrics.scale) : 0;
             } else if (type == 1) {
                 bgCol = isHovered ? COL_HOVER : COL_SURFACE;
                 txtCol = isHovered ? COL_TEXT_BRIGHT : COL_TEXT_DIM;
+                buttonOffset = isPressed ? (int)(2 * layoutMetrics.scale) : 0;
             } else {
                 bgCol = isHovered ? COL_EXIT_RED : COL_BG;
                 txtCol = isHovered ? COL_TEXT_BRIGHT : COL_TEXT_DIM;
+                buttonOffset = 0;
             }
-
+            Gdiplus::Rect rect(x + buttonOffset, y + buttonOffset, w - buttonOffset, h - buttonOffset);
             Gdiplus::GraphicsPath path;
             float r = 6.0f * layoutMetrics.scale;
             path.AddArc((float)rect.X, (float)rect.Y, r, r, 180, 90);
@@ -332,15 +338,16 @@ namespace ConfigUI {
             format.SetAlignment(Gdiplus::StringAlignmentCenter);
             format.SetLineAlignment(Gdiplus::StringAlignmentCenter);
             Gdiplus::SolidBrush textBrush(txtCol);
-
-            graphics.DrawString(wText.c_str(), -1, fontAssets.labelFont, Gdiplus::RectF((float)x, (float)y, (float)w, (float)h), &format, &textBrush);
+            
+            Gdiplus::RectF labelRect((float)(x + buttonOffset), (float)(y + buttonOffset), (float)(w - buttonOffset), (float)(h - buttonOffset));
+            graphics.DrawString(wText.c_str(), -1, fontAssets.labelFont, labelRect, &format, &textBrush);
 
             RegisterZone(x, y, w, h, ControlType::BUTTON, target);
         };
 
-        DrawBtn(defX,  btnY, btnW, btnH, "Defaults", (void*)1, 1);
-        DrawBtn(saveX, btnY, btnW, btnH, "Save",     (void*)2, 2);
-        DrawBtn(exitX, btnY, btnW, btnH, "Exit",     (void*)3, 3);
+        DrawBtn(defX,  btnY, layoutMetrics.buttonWidth, layoutMetrics.buttonHeight, "Defaults", (void*)1, 1);
+        DrawBtn(saveX, btnY, layoutMetrics.buttonWidth, layoutMetrics.buttonHeight, "Save",     (void*)2, 2);
+        DrawBtn(exitX, btnY, layoutMetrics.buttonWidth, layoutMetrics.buttonHeight, "Exit",     (void*)3, 3);
     }
 
     static void DrawCustomScrollbar(Gdiplus::Graphics& graphics) {
@@ -463,7 +470,7 @@ namespace ConfigUI {
 
         Gdiplus::SolidBrush footerBg(COL_BG); 
         graphics.FillRectangle(&footerBg, 0, layoutMetrics.footerTop + 1, layoutMetrics.windowW, layoutMetrics.footerHeight);
-        DrawFooterButtons(graphics, layoutMetrics.windowW);
+        DrawFooterButtons(graphics);
     }
 
     static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
@@ -530,6 +537,7 @@ namespace ConfigUI {
                             }
                             case ControlType::BUTTON: {
                                 currentlyRecording = nullptr;
+                                pressedButtonTarget = zone.target;
                                 int buttonId = (int)(intptr_t)zone.target;
                                 switch (buttonId) {
                                     case 1:
@@ -567,6 +575,10 @@ namespace ConfigUI {
                 return 0;
             }
             case WM_LBUTTONUP: {
+                if (pressedButtonTarget != nullptr) {
+                    pressedButtonTarget = nullptr;
+                    InvalidateRect(hWnd, NULL, FALSE);
+                }
                 if (isDraggingScroll) {
                     isDraggingScroll = false;
                     ReleaseCapture();
@@ -628,6 +640,17 @@ namespace ConfigUI {
 
                     InvalidateRect(hWnd, NULL, FALSE);
                     return 0;
+                }
+
+                if (pressedButtonTarget) {
+                    POINT pt = {GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
+                    for (const auto& zone : clickZones) {
+                        if (zone.target == pressedButtonTarget && !PtInRect(&zone.area, pt)) {
+                            pressedButtonTarget = nullptr;
+                            InvalidateRect(hWnd, NULL, FALSE);
+                            return 0;
+                        }
+                    }
                 }
 
                 void* lastHover = hoveredTarget;
