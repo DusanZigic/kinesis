@@ -39,6 +39,8 @@ namespace Launcher {
         static Gdiplus::ImageAttributes* logoAttr;
         static Gdiplus::Font* mainFont;
         static Gdiplus::Font* smallFont;
+        static HFONT hWin32MainFont;  
+        static HFONT hWin32SmallFont;
 
         static void Initialize() {
             hBgBrush = CreateSolidBrush(COL_BG.ToCOLORREF());
@@ -58,15 +60,46 @@ namespace Launcher {
             if (mainFont)  {delete mainFont;  mainFont =  nullptr;}
             if (smallFont) {delete smallFont; smallFont = nullptr;}
 
+            if (hWin32MainFont)  { DeleteObject(hWin32MainFont);  hWin32MainFont  = nullptr;}
+            if (hWin32SmallFont) { DeleteObject(hWin32SmallFont); hWin32SmallFont = nullptr;}
+
             mainFont  = new Gdiplus::Font(L"Consolas", mainFontSize,  Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
             smallFont = new Gdiplus::Font(L"Consolas", smallFontSize, Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
+
+            hWin32MainFont = CreateFontW(
+                -(int)mainFontSize,
+                0, 0, 0,
+                FW_NORMAL,
+                FALSE, FALSE, FALSE,
+                DEFAULT_CHARSET,
+                OUT_DEFAULT_PRECIS,
+                CLIP_DEFAULT_PRECIS,
+                CLEARTYPE_QUALITY,
+                FIXED_PITCH | FF_MODERN,
+                L"Consolas"
+            );
+
+            hWin32SmallFont = CreateFontW(
+                -(int)smallFontSize,
+                0, 0, 0,
+                FW_NORMAL,
+                FALSE, FALSE, FALSE,
+                DEFAULT_CHARSET,
+                OUT_DEFAULT_PRECIS,
+                CLIP_DEFAULT_PRECIS,
+                CLEARTYPE_QUALITY,
+                FIXED_PITCH | FF_MODERN,
+                L"Consolas"
+            );
         }
 
         static void Release() {
-            if (hBgBrush)  {DeleteObject(hBgBrush); hBgBrush  = nullptr;}
-            if (logoAttr)  {delete logoAttr;        logoAttr  = nullptr;}
-            if (mainFont)  {delete mainFont;        mainFont  = nullptr;}
-            if (smallFont) {delete smallFont;       smallFont = nullptr;}
+            if (hBgBrush)        {DeleteObject(hBgBrush);        hBgBrush        = nullptr;}
+            if (logoAttr)        {delete logoAttr;               logoAttr        = nullptr;}
+            if (mainFont)        {delete mainFont;               mainFont        = nullptr;}
+            if (smallFont)       {delete smallFont;              smallFont       = nullptr;}
+            if (hWin32MainFont)  {DeleteObject(hWin32MainFont);  hWin32MainFont  = nullptr;}
+            if (hWin32SmallFont) {DeleteObject(hWin32SmallFont); hWin32SmallFont = nullptr;}
         }
 
     };

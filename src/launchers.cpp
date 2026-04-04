@@ -20,6 +20,8 @@ namespace Launcher {
     Gdiplus::ImageAttributes* UIStyle::logoAttr = nullptr;
     Gdiplus::Font* UIStyle::mainFont = nullptr;
     Gdiplus::Font* UIStyle::smallFont = nullptr;
+    HFONT UIStyle::hWin32MainFont  = nullptr;
+    HFONT UIStyle::hWin32SmallFont = nullptr;
 
     static std::vector<std::string> allCrawledFolders;
     static std::vector<std::string> currentMatches;
@@ -943,6 +945,10 @@ namespace Launcher {
         AlignUIElements();
 
         SendMessage(hListBox, LB_SETITEMHEIGHT, 0, (LPARAM)(layoutMetrics.mainWinH * 0.12));
+
+        SendMessage(hEdit,      WM_SETFONT, (WPARAM)UIStyle::hWin32MainFont,  TRUE);
+        SendMessage(hListBox,   WM_SETFONT, (WPARAM)UIStyle::hWin32MainFont,  TRUE);    
+        SendMessage(hPathLabel, WM_SETFONT, (WPARAM)UIStyle::hWin32SmallFont, TRUE);
 
         if (!activeCtx->isEngineFound) {
             EnableWindow(hEdit, FALSE);
