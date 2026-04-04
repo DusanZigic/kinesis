@@ -872,7 +872,17 @@ namespace Launcher {
     void Show(Mode mode) {
         if (hLauncherWindow) return;
 
-        activeCtx = (mode == Mode::VSCode) ? &ctxVSCode : &ctxWSL;
+        switch (mode) {
+            case Mode::VSCode:
+                activeCtx = &ctxVSCode;
+                break;
+            case Mode::WSL:
+                activeCtx = &ctxWSL;
+                break;
+            default:
+                activeCtx = &ctxVSCode;
+                break;
+        }
 
         EnsureEnginePathValid(*activeCtx);
 
