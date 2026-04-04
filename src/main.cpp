@@ -49,11 +49,11 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
         if (isDown) {
             if (ctrlHeld && altHeld) {
                 if (Config::currentConfiguration.enableVSCodeLauncher && pKeyBoard->vkCode == Config::currentConfiguration.VSCodeLauncherKey) {
-                    ShowLauncher(LauncherMode::VSCode);
+                    Launcher::Show(Launcher::Mode::VSCode);
                     return 1;
                 }
                 if (Config::currentConfiguration.enableWSLTerminalLauncher && pKeyBoard->vkCode == Config::currentConfiguration.WSLTerminalLauncherKey) {
-                    ShowLauncher(LauncherMode::WSL);
+                    Launcher::Show(Launcher::Mode::WSL);
                     return 1;
                 }
                 if (pKeyBoard->vkCode == 'C') {
@@ -164,7 +164,7 @@ int main() {
     ULONG_PTR gdiplusToken;
     Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
     Config::LoadConfig();    
-    InitializeLauncher();
+    Launcher::Initialize();
     
     MSG msg;
     while (GetMessage(&msg, NULL, 0, 0)) {
@@ -173,7 +173,7 @@ int main() {
     }
 
     UnhookWindowsHookEx(hhkLowLevelKybd);
-    ReleaseLauncherResources();
+    Launcher::ReleaseResources();
     Gdiplus::GdiplusShutdown(gdiplusToken);
     SystemState::CleanUp();
 
