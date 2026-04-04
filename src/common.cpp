@@ -12,15 +12,6 @@ std::string ToLower(std::string s) {
     return s;
 }
 
-std::wstring ConvertToWide(const std::string& str) {
-    if (str.empty()) return L"";
-    
-    int size_needed = MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), NULL, 0);
-    std::wstring wstrTo(size_needed, 0);
-    MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), &wstrTo[0], size_needed);
-    return wstrTo;
-}
-
 std::string GetProcessName(DWORD pid) {
     char path[MAX_PATH] = {0};
     DWORD size = MAX_PATH;
@@ -36,6 +27,22 @@ std::string GetProcessName(DWORD pid) {
     return "<unknown>";
 }
 
+std::string WToUTF8(const std::wstring& wstr) {
+    if (wstr.empty()) return "";
+    int size = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, NULL, 0, NULL, NULL);
+    std::string result(size - 1, 0);
+    WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, &result[0], size, NULL, NULL);
+    return result;
+}
+
+std::wstring UTF8ToW(const std::string& str) {
+    if (str.empty()) return L"";
+    int size = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, NULL, 0);
+    std::wstring result(size - 1, 0);
+    MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, &result[0], size);
+    return result;
+}
+
 std::string GetKnownFolderPath(REFKNOWNFOLDERID rfid) {
     PWSTR pszPath = NULL;
     std::string path = "";
@@ -49,6 +56,17 @@ std::string GetKnownFolderPath(REFKNOWNFOLDERID rfid) {
         CoTaskMemFree(pszPath);
     }
     return path;
+}
+
+std::wstring GetKnownFolderPathW(REFKNOWNFOLDERID rfid) {
+    PWSTR pszPath = NULL;
+    HRESULT hr = SHGetKnownFolderPath(rfid, 0, NULL, &pszPath);
+    if (SUCCEEDED(hr)) {
+        std::wstring path(pszPath);
+        CoTaskMemFree(pszPath);
+        return path;
+    }
+    return L"";
 }
 
 void SmoothShowWindow(HWND hwnd) {

@@ -8,16 +8,16 @@ namespace Launcher {
 
     struct Context {
         Mode type;
-        std::string windowTitle;
+        std::wstring windowTitle;
         int logoResourceID;
-        std::string historyFileName;
+        std::wstring historyFileName;
         bool isEngineFound = false;
-        std::string executablePath;
-        std::string cliPath;
+        std::wstring executablePath;
+        std::wstring cliPath;
         Gdiplus::Image* logoImage = nullptr;
         float logoImageAspectRatio;
-        std::string placeholder;
-        std::vector<std::string> history;
+        std::wstring placeholder;
+        std::vector<std::wstring> history;
     };
 
     struct LayoutMetrics {

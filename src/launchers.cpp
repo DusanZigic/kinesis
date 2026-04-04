@@ -23,29 +23,29 @@ namespace Launcher {
     HFONT UIStyle::hWin32MainFont  = nullptr;
     HFONT UIStyle::hWin32SmallFont = nullptr;
 
-    static std::vector<std::string> allCrawledFolders;
-    static std::vector<std::string> currentMatches;
+    static std::vector<std::wstring> allCrawledFolders;
+    static std::vector<std::wstring> currentMatches;
     static std::mutex crawlMutex;
     static std::atomic<bool> isScanning(false);
     
-    static std::string historyBaseDir = "";
-    static std::vector<std::string> crawlerRootPaths;
+    static std::wstring historyBaseDir = L"";
+    static std::vector<std::wstring> crawlerRootPaths;
     static const int maxSubFolderDepth = 5;
     static const int maxPathsN = 5;
 
     static int pendingIndex = -1;
 
-    static std::string GetEnv(const std::string& var) {
-        char buf[MAX_PATH];
-        DWORD res = GetEnvironmentVariableA(var.c_str(), buf, MAX_PATH);
-        return (res > 0 && res < MAX_PATH) ? std::string(buf) : "";
+    static std::wstring GetEnv(const std::wstring& var) {
+        wchar_t buf[MAX_PATH];
+        DWORD res = GetEnvironmentVariableW(var.c_str(), buf, MAX_PATH);
+        return (res > 0 && res < MAX_PATH) ? std::wstring(buf) : L"";
     }
 
     static void FindVSCode(Context& ctx) {
-        std::vector<std::string> searchBases = {
-            GetEnv("LOCALAPPDATA") + "\\Programs\\Microsoft VS Code",
-            GetEnv("ProgramFiles") + "\\Microsoft VS Code",
-            "C:\\Program Files\\Microsoft VS Code"
+        std::vector<std::wstring> searchBases = {
+            GetEnv(L"LOCALAPPDATA") + L"\\Programs\\Microsoft VS Code",
+            GetEnv(L"ProgramFiles") + L"\\Microsoft VS Code",
+            L"C:\\Program Files\\Microsoft VS Code"
         };
 
         for (const auto& base : searchBases) {
@@ -99,8 +99,8 @@ namespace Launcher {
                         fs::path cliPath = ResolveRelative(cliRaw);
 
                         if (fs::exists(exePath) && fs::exists(cliPath)) {
-                            ctx.executablePath = exePath.u8string();
-                            ctx.cliPath = cliPath.u8string();
+                            ctx.executablePath = exePath.wstring();
+                            ctx.cliPath = cliPath.wstring();
                             ctx.isEngineFound = true;
                             return;
                         }
@@ -113,9 +113,9 @@ namespace Launcher {
     }
 
     static void FindWSL(Context& ctx) {
-        char pathBuf[MAX_PATH];
-        if (SearchPathA(NULL, "wsl", ".exe", MAX_PATH, pathBuf, NULL) > 0) {
-            ctx.executablePath = std::string(pathBuf);
+        wchar_t pathBuf[MAX_PATH];
+        if (SearchPathW(NULL, L"wsl", L".exe", MAX_PATH, pathBuf, NULL) > 0) {
+            ctx.executablePath = std::wstring(pathBuf);
             ctx.isEngineFound = true;
             return;
         }
@@ -123,12 +123,12 @@ namespace Launcher {
     }
 
     static void SetUpStoragePath() {
-        std::string baseAppPath = GetKnownFolderPath(FOLDERID_LocalAppData);
+        std::wstring baseAppPath = GetKnownFolderPathW(FOLDERID_LocalAppData);
         if (!baseAppPath.empty()) {
-            std::string kinesisPath = baseAppPath + "\\Kinesis";
-            std::string historyPath = kinesisPath + "\\History";
-            CreateDirectoryA(kinesisPath.c_str(), NULL);
-            CreateDirectoryA(historyPath.c_str(), NULL);
+            std::wstring kinesisPath = baseAppPath + L"\\Kinesis";
+            std::wstring historyPath = kinesisPath + L"\\History";
+            CreateDirectoryW(kinesisPath.c_str(), NULL);
+            CreateDirectoryW(historyPath.c_str(), NULL);
             historyBaseDir = historyPath;
         }
     }
@@ -160,55 +160,60 @@ namespace Launcher {
     }
 
     static void LoadHistory(Context& ctx) {
-        std::string fullPath = historyBaseDir + "\\" + ctx.historyFileName;
-        std::ifstream file(fullPath);
+        std::wstring wideHistoryPath = historyBaseDir + L"\\" + ctx.historyFileName;
+        std::ifstream file(wideHistoryPath.c_str(), std::ios::in);
         if (file.is_open()) {
             ctx.history.clear();
             std::string line;
-            while (std::getline(file, line)) if (!line.empty()) ctx.history.push_back(line);
+            while (std::getline(file, line)) {
+                if (!line.empty()) {
+                    ctx.history.push_back(UTF8ToW(line));
+                }
+            }
+            file.close();
         }
     }
 
-    static const std::vector<std::string> GetOneDrivePaths() {
-        std::vector<std::string> paths;
+    static const std::vector<std::wstring> GetOneDrivePaths() {
+        std::vector<std::wstring> paths;
         HKEY hKey;
 
-        const char* subkey = "Software\\Microsoft\\OneDrive\\Accounts";
+        const wchar_t* subkey = L"Software\\Microsoft\\OneDrive\\Accounts";
 
-        if (RegOpenKeyExA(HKEY_CURRENT_USER, subkey, 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
-            char accountName[256];
-            DWORD nameSize = sizeof(accountName);
+        if (RegOpenKeyExW(HKEY_CURRENT_USER, subkey, 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+            wchar_t accountName[256];
+            DWORD nameSize = sizeof(accountName) / sizeof(wchar_t);
 
-            for (DWORD i = 0; RegEnumKeyExA(hKey, i, accountName, &nameSize, NULL, NULL, NULL, NULL) == ERROR_SUCCESS; ++i) {
+            for (DWORD i = 0; RegEnumKeyExW(hKey, i, accountName, &nameSize, NULL, NULL, NULL, NULL) == ERROR_SUCCESS; ++i) {
                 HKEY hAccountKey;
-                if (RegOpenKeyExA(hKey, accountName, 0, KEY_READ, &hAccountKey) == ERROR_SUCCESS) {
-                    char path[MAX_PATH];
+                if (RegOpenKeyExW(hKey, accountName, 0, KEY_READ, &hAccountKey) == ERROR_SUCCESS) {
+                    wchar_t path[MAX_PATH];
                     DWORD pathSize = sizeof(path);
-                    if (RegQueryValueExA(hAccountKey, "UserFolder", NULL, NULL, (LPBYTE)path, &pathSize) == ERROR_SUCCESS) {
+                    if (RegQueryValueExW(hAccountKey, L"UserFolder", NULL, NULL, (LPBYTE)path, &pathSize) == ERROR_SUCCESS) {
                         if (fs::exists(path)) {
-                            paths.push_back(std::string(path));
+                            paths.push_back(std::wstring(path));
                         }
                     }
                     RegCloseKey(hAccountKey);
                 }
-                nameSize = sizeof(accountName);
+                nameSize = sizeof(accountName) / sizeof(wchar_t);
             }
             RegCloseKey(hKey);
         }
-        
+
         if (paths.empty()) {
-            std::string personal = GetEnv("OneDrive");
+            std::wstring personal = GetEnv(L"OneDrive");
             if (!personal.empty() && fs::exists(personal)) paths.push_back(personal);
             
-            std::string business = GetEnv("OneDriveCommercial");
+            std::wstring business = GetEnv(L"OneDriveCommercial");
             if (!business.empty() && fs::exists(business)) paths.push_back(business);
         }
 
         return paths;
     }
 
-    static std::vector<std::string> GetWSLDistros() {
-        std::vector<std::string> distros;
+    static std::vector<std::wstring> GetWSLDistros() {
+        std::vector<std::wstring> distros;
         HANDLE hRead, hWrite;
         SECURITY_ATTRIBUTES sa {};
         sa.nLength = sizeof(sa);
@@ -237,9 +242,9 @@ namespace Launcher {
                 rawBuffer.insert(rawBuffer.end(), chunk, chunk + bytesRead);
             }
 
-            std::string currentDistro;
+            std::wstring currentDistro;
             for (size_t i = 0; i < rawBuffer.size(); i += 2) {
-                char c = rawBuffer[i];
+                wchar_t c = rawBuffer[i];
                 if (c == '\r' || c == '\n' || c == '\0') {
                     if (!currentDistro.empty()) {
                         distros.push_back(currentDistro);
@@ -263,29 +268,29 @@ namespace Launcher {
     static void InitializeCrawlerRootPaths() {
         KNOWNFOLDERID roots[] = { FOLDERID_Documents, FOLDERID_Desktop, FOLDERID_Downloads };
         for (const auto& id : roots) {
-            std::string p = GetKnownFolderPath(id);
+            std::wstring p = GetKnownFolderPathW(id);
             if (!p.empty()) crawlerRootPaths.push_back(p);
         }
 
-        std::vector<std::string> oneDrivePaths = GetOneDrivePaths();
+        std::vector<std::wstring> oneDrivePaths = GetOneDrivePaths();
         for (const auto& path : oneDrivePaths) {
             if (std::find(crawlerRootPaths.begin(), crawlerRootPaths.end(), path) == crawlerRootPaths.end()) {
                 crawlerRootPaths.push_back(path);
             }
         }
 
-        std::vector<std::string> distros = GetWSLDistros();
+        std::vector<std::wstring> distros = GetWSLDistros();
         std::error_code ec;
-        for (const std::string& distro : distros) {
-            std::string basePaths[] = { 
-                "\\\\wsl.localhost\\" + distro + "\\home",
-                "\\\\wsl$\\" + distro + "\\home" 
+        for (const auto& distro : distros) {
+            std::wstring basePaths[] = { 
+                L"\\\\wsl.localhost\\" + distro + L"\\home",
+                L"\\\\wsl$\\" + distro + L"\\home" 
             };
-            for (const std::string& homeBase : basePaths) {
+            for (const auto& homeBase : basePaths) {
                 if (fs::exists(homeBase, ec)) {
                     for (auto const& userEntry : fs::directory_iterator(homeBase, ec)) {
                         if (!ec && userEntry.is_directory(ec)) {
-                            crawlerRootPaths.push_back(userEntry.path().string());
+                            crawlerRootPaths.push_back(userEntry.path().wstring());
                         }
                     }
                     break;
@@ -294,11 +299,11 @@ namespace Launcher {
         }
     }
 
-    static void ScanDirectory(const std::string& path, std::vector<std::string>& results, int depth) {
+    static void ScanDirectory(const std::wstring& path, std::vector<std::wstring>& results, int depth) {
         if (depth > maxSubFolderDepth) return;
 
-        WIN32_FIND_DATAA fd;
-        HANDLE hFind = FindFirstFileA((path + "\\*").c_str(), &fd);
+        WIN32_FIND_DATAW fd;
+        HANDLE hFind = FindFirstFileW((path + L"\\*").c_str(), &fd);
         if (hFind != INVALID_HANDLE_VALUE) {
             do {
                 if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) || (fd.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
@@ -309,20 +314,20 @@ namespace Launcher {
                     (fd.dwFileAttributes & FILE_ATTRIBUTE_OFFLINE)) {
                     continue;
                 }
-                if (strcmp(fd.cFileName, ".") == 0 || strcmp(fd.cFileName, "..") == 0) {
+                if (wcscmp(fd.cFileName, L".") == 0 || wcscmp(fd.cFileName, L"..") == 0) {
                     continue;
                 }
-                if (strcmp(fd.cFileName, "node_modules") == 0 ||
-                    strcmp(fd.cFileName, ".git") == 0 ||
-                    strcmp(fd.cFileName, "bin") == 0 ||
-                    strcmp(fd.cFileName, ".vs") == 0 ||
-                    strcmp(fd.cFileName, "obj") == 0) {
+                if (wcscmp(fd.cFileName, L"node_modules") == 0 ||
+                    wcscmp(fd.cFileName, L".git") == 0 ||
+                    wcscmp(fd.cFileName, L"bin") == 0 ||
+                    wcscmp(fd.cFileName, L".vs") == 0 ||
+                    wcscmp(fd.cFileName, L"obj") == 0) {
                         continue;
                 }
-                std::string fullPath = path + "\\" + fd.cFileName;
+                std::wstring fullPath = path + L"\\" + fd.cFileName;
                 results.push_back(fullPath);
                 ScanDirectory(fullPath, results, depth + 1);
-            } while (FindNextFileA(hFind, &fd));
+            } while (FindNextFileW(hFind, &fd));
             FindClose(hFind);
         }
     }
@@ -330,7 +335,7 @@ namespace Launcher {
     static void BackgroundCrawl() {
         if (isScanning.exchange(true)) return;
         std::thread([]() {
-            std::vector<std::string> tempFolders;
+            std::vector<std::wstring> tempFolders;
             for (const auto& root : crawlerRootPaths) ScanDirectory(root, tempFolders, 0);
             {
                 std::lock_guard<std::mutex> lock(crawlMutex);
@@ -340,23 +345,23 @@ namespace Launcher {
         }).detach();
     }
 
-    static void RefreshMatches(std::string input) {
+    static void RefreshMatches(std::wstring input) {
         if (!activeCtx->isEngineFound) {
             SendMessage(hListBox, LB_RESETCONTENT, 0, 0);
-            SetWindowTextA(hPathLabel, "ERROR: executable not found! Check your installation.");
+            SetWindowTextW(hPathLabel, L"ERROR: executable not found! Check your installation.");
             return;
         }
 
         currentMatches.clear();
         SendMessage(hListBox, LB_RESETCONTENT, 0, 0);
 
-        std::string lowerInput = input;
+        std::wstring lowerInput = input;
         std::transform(lowerInput.begin(), lowerInput.end(), lowerInput.begin(), ::tolower);
 
-        auto addMatch = [&](const std::string& path) {
+        auto addMatch = [&](const std::wstring& path) {
             currentMatches.push_back(path);
-            const char* displayName = PathFindFileNameA(path.c_str());
-            SendMessage(hListBox, LB_ADDSTRING, 0, (LPARAM)displayName);
+            PCWSTR displayName = PathFindFileNameW(path.c_str());
+            SendMessageW(hListBox, LB_ADDSTRING, 0, (LPARAM)displayName);
         };
 
         if (input.empty()) {
@@ -367,9 +372,9 @@ namespace Launcher {
             for (const auto& path : activeCtx->history) {
                 if (currentMatches.size() >= maxPathsN) break;
 
-                std::string lowerPath = path;
+                std::wstring lowerPath = path;
                 std::transform(lowerPath.begin(), lowerPath.end(), lowerPath.begin(), ::tolower);
-                if (lowerPath.find(lowerInput) != std::string::npos) {
+                if (lowerPath.find(lowerInput) != std::wstring::npos) {
                     addMatch(path);
                 }
             }
@@ -378,9 +383,9 @@ namespace Launcher {
                 if (currentMatches.size() >= maxPathsN) break;
                 
                 if (std::find(activeCtx->history.begin(), activeCtx->history.end(), path) != activeCtx->history.end()) continue;
-                std::string lowerPath = path;
+                std::wstring lowerPath = path;
                 std::transform(lowerPath.begin(), lowerPath.end(), lowerPath.begin(), ::tolower);
-                if (lowerPath.find(lowerInput) != std::string::npos) {
+                if (lowerPath.find(lowerInput) != std::wstring::npos) {
                     addMatch(path);
                 }
             }
@@ -388,12 +393,12 @@ namespace Launcher {
 
         if (!currentMatches.empty()) {
             SendMessage(hListBox, LB_SETCURSEL, 0, 0);
-            SetWindowTextA(hPathLabel, currentMatches[0].c_str());
+            SetWindowTextW(hPathLabel, currentMatches[0].c_str());
         } else {
             if (isScanning) {
-                SetWindowTextA(hPathLabel, activeCtx->placeholder.c_str());
+                SetWindowTextW(hPathLabel, activeCtx->placeholder.c_str());
             } else {
-                SetWindowTextA(hPathLabel, input.empty() ? "" : "No matches found.");
+                SetWindowTextW(hPathLabel, input.empty() ? L"" : L"No matches found.");
             }
         }
 
@@ -407,25 +412,25 @@ namespace Launcher {
         SetUpStoragePath();
 
         ctxVSCode.type = Mode::VSCode;
-        ctxVSCode.historyFileName = "vscodelauncher_history.txt";
+        ctxVSCode.historyFileName = L"vscodelauncher_history.txt";
         ctxVSCode.logoResourceID = 101;
         FindVSCode(ctxVSCode);
         ctxVSCode.logoImage = LoadImageFromResource(ctxVSCode.logoResourceID);
         ctxVSCode.logoImageAspectRatio = (float)ctxVSCode.logoImage->GetWidth() / ctxVSCode.logoImage->GetHeight();
-        ctxVSCode.placeholder = "Search for VS Code projects...";
+        ctxVSCode.placeholder = L"Search for VS Code projects...";
         LoadHistory(ctxVSCode);
 
         ctxWSL.type = Mode::WSL;
-        ctxWSL.historyFileName = "wsllauncher_history.txt";
+        ctxWSL.historyFileName = L"wsllauncher_history.txt";
         ctxWSL.logoResourceID = 102;
         FindWSL(ctxWSL);
         ctxWSL.logoImage = LoadImageFromResource(ctxWSL.logoResourceID);
         ctxWSL.logoImageAspectRatio = (float)ctxWSL.logoImage->GetWidth() / ctxWSL.logoImage->GetHeight();
-        ctxWSL.placeholder = "Search for WSL directories...";
+        ctxWSL.placeholder = L"Search for WSL directories...";
         LoadHistory(ctxWSL);
 
         InitializeCrawlerRootPaths();
-        // BackgroundCrawl();
+        BackgroundCrawl();
     }
 
     static void EnsureEnginePathValid(Context& ctx) {
@@ -483,14 +488,17 @@ namespace Launcher {
     }
 
     static void SaveHistory(const Context& ctx) {
-        std::string fullPath = historyBaseDir + "\\" + ctx.historyFileName;
-        std::ofstream file(fullPath, std::ios::trunc);
+        std::wstring wideHistoryPath = historyBaseDir + L"\\" + ctx.historyFileName;
+        std::ofstream file(wideHistoryPath.c_str(), std::ios::out | std::ios::trunc);
         if (file.is_open()) {
-            for (const auto& entry : ctx.history) file << entry << "\n";
+            for (const auto& wline : ctx.history) {
+                file << WToUTF8(wline) << "\n";
+            }
+            file.close();
         }
     }
 
-    static void AddToHistory(const std::string& newPath) {
+    static void AddToHistory(const std::wstring& newPath) {
         auto& history = activeCtx->history;
         auto it = std::find(history.begin(), history.end(), newPath);
         if (it != history.end()) {
@@ -503,55 +511,55 @@ namespace Launcher {
         SaveHistory(*activeCtx);
     }
 
-    static std::string ExtractDistroFromPath(const std::string& path) {
-        std::string distroName = "";
-        std::string prefix = "\\\\wsl.localhost\\";
+    static std::wstring ExtractDistroFromPath(const std::wstring& path) {
+        std::wstring distroName = L"";
+        std::wstring prefix = L"\\\\wsl.localhost\\";
         size_t start = path.find(prefix);
-        if (start != std::string::npos) {
+        if (start != std::wstring::npos) {
             start += prefix.length();
             size_t end = path.find('\\', start);
-            if (end != std::string::npos) {
+            if (end != std::wstring::npos) {
                 distroName = path.substr(start, end - start);
                 return distroName;
             }
         } else {
-            prefix = "\\\\wsl$\\";
+            prefix = L"\\\\wsl$\\";
             start = path.find(prefix);
-            if (start != std::string::npos) {
+            if (start != std::wstring::npos) {
                 start += prefix.length();
                 size_t end = path.find('\\', start);
-                if (end != std::string::npos) {
+                if (end != std::wstring::npos) {
                     distroName = path.substr(start, end - start);
                     return distroName;
                 }
             }
         }
 
-        return "";
+        return L"";
     }
 
-    static std::string ResolveWSLPath(const std::string& windowsPath, const std::string& distroName) {
+    static std::wstring ResolveWSLPath(const std::wstring& windowsPath, const std::wstring& distroName) {
         if (!distroName.empty()) {
-            std::string searchKey = "\\" + distroName;
+            std::wstring searchKey = L"\\" + distroName;
             size_t pos = windowsPath.find(searchKey);
-            if (pos != std::string::npos) {
-                std::string linuxPath = windowsPath.substr(pos + searchKey.length());
+            if (pos != std::wstring::npos) {
+                std::wstring linuxPath = windowsPath.substr(pos + searchKey.length());
                 std::replace(linuxPath.begin(), linuxPath.end(), '\\', '/');
-                return linuxPath.empty() ? "/" : linuxPath;
+                return linuxPath.empty() ? L"/" : linuxPath;
             }
         } else {
             if (windowsPath.length() >= 3 && windowsPath[1] == ':' && windowsPath[2] == '\\') {
-                std::string linuxPath = windowsPath;
-                char driveLetter = tolower(linuxPath[0]);
-                linuxPath = "/mnt/" + std::string(1, driveLetter) + linuxPath.substr(2);
+                std::wstring linuxPath = windowsPath;
+                wchar_t driveLetter = tolower(linuxPath[0]);
+                linuxPath = L"/mnt/" + std::wstring(1, driveLetter) + linuxPath.substr(2);
                 std::replace(linuxPath.begin(), linuxPath.end(), '\\', '/');
-                return linuxPath.empty() ? "/" : linuxPath;
+                return linuxPath.empty() ? L"/" : linuxPath;
             }
         }
-        return "/";
+        return L"/";
     }
 
-    static bool LaunchDeElevated(const std::string& path, const std::string& args, bool hide) {
+    static bool LaunchDeElevated(const std::wstring& path, const std::wstring& args, bool hide) {
         IShellWindows* psw = NULL;
         HRESULT hr = CoCreateInstance(CLSID_ShellWindows, NULL, CLSCTX_LOCAL_SERVER, IID_IShellWindows, (void**)&psw);
         if (FAILED(hr)) return false;
@@ -604,11 +612,11 @@ namespace Launcher {
         pdispApp->Release();
         if (FAILED(hr)) return false;
 
-        BSTR bstrPath = SysAllocString(std::wstring(path.begin(), path.end()).c_str());
+        BSTR bstrPath = SysAllocString(path.c_str());
         VARIANT vArgs;
         VariantInit(&vArgs);
         vArgs.vt = VT_BSTR;
-        vArgs.bstrVal = SysAllocString(std::wstring(args.begin(), args.end()).c_str());
+        vArgs.bstrVal = SysAllocString(args.c_str());
         
         VARIANT vVerb, vDir, vShow;
         VariantInit(&vVerb);
@@ -627,23 +635,23 @@ namespace Launcher {
     }
 
     static void ExecuteLaunch(int selected) {
-        std::string path = currentMatches[selected];
+        std::wstring path = currentMatches[selected];
         AddToHistory(path);
 
         if (activeCtx->type == Mode::VSCode) {
-            std::string fullArgs =
-                "/c \"set ELECTRON_RUN_AS_NODE=1 && \"" + 
-                activeCtx->executablePath + "\" \"" + 
-                activeCtx->cliPath + "\" \"" + path + "\"\"";
-            LaunchDeElevated("cmd.exe", fullArgs, true);        
+            std::wstring fullArgs =
+                L"/c \"set ELECTRON_RUN_AS_NODE=1 && \"" + 
+                activeCtx->executablePath + L"\" \"" + 
+                activeCtx->cliPath + L"\" \"" + path + L"\"\"";
+            LaunchDeElevated(L"cmd.exe", fullArgs, true);        
         
         } else if (activeCtx->type == Mode::WSL) {
-            std::string distroName = ExtractDistroFromPath(path);
-            std::string linuxPath = ResolveWSLPath(path, distroName);
-            std::string wslArgs = "";
-            if (!distroName.empty()) wslArgs += "-d " + distroName + " ";
-            wslArgs += "--cd \"" + linuxPath + "\"";
-            LaunchDeElevated("wsl.exe", wslArgs, false);
+            std::wstring distroName = ExtractDistroFromPath(path);
+            std::wstring linuxPath = ResolveWSLPath(path, distroName);
+            std::wstring wslArgs = L"";
+            if (!distroName.empty()) wslArgs += L"-d " + distroName + L" ";
+            wslArgs += L"--cd \"" + linuxPath + L"\"";
+            LaunchDeElevated(L"wsl.exe", wslArgs, false);
         }
     }
 
@@ -674,7 +682,7 @@ namespace Launcher {
                     if (next >= count) next = 0;
 
                     SendMessage(hListBox, LB_SETCURSEL, next, 0);
-                    SetWindowTextA(hPathLabel, currentMatches[next].c_str());
+                    SetWindowTextW(hPathLabel, currentMatches[next].c_str());
                     InvalidateRect(hListBox, NULL, FALSE);
                     return 0;
                 }
@@ -757,7 +765,7 @@ namespace Launcher {
                     KillTimer(hwnd, 1);
                     if (pendingIndex != -1) {
                         SendMessage(hwnd, LB_SETCURSEL, pendingIndex, 0);
-                        SetWindowTextA(hPathLabel, currentMatches[pendingIndex].c_str());
+                        SetWindowTextW(hPathLabel, currentMatches[pendingIndex].c_str());
                         InvalidateRect(hwnd, NULL, FALSE);
                     }
                 }
@@ -826,10 +834,9 @@ namespace Launcher {
                     );
                 }
 
-                char buffer[256];
-                SendMessage(pdis->hwndItem, LB_GETTEXT, pdis->itemID, (LPARAM)buffer);
+                wchar_t buffer[MAX_PATH];
+                SendMessageW(pdis->hwndItem, LB_GETTEXT, pdis->itemID, (LPARAM)buffer);
                 SetBkMode(pdis->hDC, TRANSPARENT);
-                std::wstring wText = ConvertToWide(buffer);
 
                 Gdiplus::SolidBrush textBrush(sel ? UIStyle::COL_TXT : UIStyle::COL_SELTXT);
                 Gdiplus::StringFormat format;
@@ -842,14 +849,14 @@ namespace Launcher {
                     (float)(pdis->rcItem.bottom - pdis->rcItem.top)
                 );
 
-                graphics.DrawString(wText.c_str(), -1, UIStyle::mainFont, layoutRect, &format, &textBrush);
+                graphics.DrawString(buffer, -1, UIStyle::mainFont, layoutRect, &format, &textBrush);
                 
                 return TRUE;
             }
             case WM_COMMAND: {
                 if (HIWORD(wParam) == EN_CHANGE) {
-                    char buffer[256];
-                    GetWindowTextA(hEdit, buffer, 256);
+                    wchar_t buffer[MAX_PATH];
+                    GetWindowTextW(hEdit, buffer, MAX_PATH);
                     RefreshMatches(buffer);
                 }
                 return 0;
@@ -892,22 +899,24 @@ namespace Launcher {
         EnsureEnginePathValid(*activeCtx);
 
         if (!launcherClassRegistered) {
-            WNDCLASSA wc {};
-            wc.lpfnWndProc = LauncherWindProc;
-            wc.hInstance = GetModuleHandle(NULL);
-            wc.lpszClassName = "KinesisLauncher";
-            wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-            RegisterClassA(&wc);
-            launcherClassRegistered = true;
+            WNDCLASSW wc {};
+            wc.lpfnWndProc   = LauncherWindProc;
+            wc.hInstance     = GetModuleHandle(NULL);
+            wc.lpszClassName = L"KinesisLauncher";
+            wc.hCursor       = LoadCursor(NULL, IDC_ARROW);
+            wc.hbrBackground = NULL; 
+            if (RegisterClassW(&wc)) {
+                launcherClassRegistered = true;
+            }
         }
         
         PrepareWindowMetrics();
         UIStyle::UpdateScaleDependentResources(layoutMetrics.mainFontSize, layoutMetrics.smallFontSize);
 
-        hLauncherWindow = CreateWindowExA(
+        hLauncherWindow = CreateWindowExW(
             WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
-            "KinesisLauncher",
-            NULL,
+            L"KinesisLauncher",
+            nullptr,
             WS_POPUP,
             layoutMetrics.mainWinX, layoutMetrics.mainWinY, layoutMetrics.mainWinW, layoutMetrics.mainWinH,
             NULL,
@@ -917,10 +926,10 @@ namespace Launcher {
         );
         SetLayeredWindowAttributes(hLauncherWindow, 0, 245, LWA_ALPHA);
 
-        hEdit = CreateWindowExA(
+        hEdit = CreateWindowExW(
             0,
-            "EDIT",
-            "",
+            L"EDIT",
+            L"",
             WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL,
             layoutMetrics.margin, layoutMetrics.editY, layoutMetrics.innerWidth, layoutMetrics.editH,
             hLauncherWindow,
@@ -929,10 +938,10 @@ namespace Launcher {
             NULL
         );
         
-        hListBox = CreateWindowExA(
+        hListBox = CreateWindowExW(
             0,
-            "LISTBOX",
-            NULL,
+            L"LISTBOX",
+            nullptr,
             WS_CHILD | WS_VISIBLE | WS_VSCROLL | LBS_NOTIFY | LBS_HASSTRINGS | LBS_OWNERDRAWFIXED,
             layoutMetrics.margin, layoutMetrics.listY, layoutMetrics.innerWidth, layoutMetrics.listH,
             hLauncherWindow,
@@ -941,10 +950,10 @@ namespace Launcher {
             NULL
         );
 
-        hPathLabel = CreateWindowExA(
+        hPathLabel = CreateWindowExW(
             0,
-            "STATIC",
-            "",
+            L"STATIC",
+            L"",
             WS_CHILD | WS_VISIBLE | SS_LEFTNOWORDWRAP,
             layoutMetrics.margin, layoutMetrics.pathY, layoutMetrics.innerWidth, layoutMetrics.pathH,
             hLauncherWindow,
@@ -963,7 +972,7 @@ namespace Launcher {
 
         if (!activeCtx->isEngineFound) {
             EnableWindow(hEdit, FALSE);
-            SetWindowTextA(hEdit, "");
+            SetWindowTextW(hEdit, L"");
         }
 
         int cornerRadius = layoutMetrics.mainWinH * 0.06;
@@ -974,8 +983,8 @@ namespace Launcher {
         SetWindowSubclass(hListBox, ListBoxSubclassProc, 0, 0);
 
         LoadHistory(*activeCtx);
-        // BackgroundCrawl();
-        RefreshMatches("");
+        BackgroundCrawl();
+        RefreshMatches(L"");
 
         AllowSetForegroundWindow(ASFW_ANY);
         keybd_event(0xFC, 0, 0, 0);
