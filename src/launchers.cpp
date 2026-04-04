@@ -116,6 +116,7 @@ namespace Launcher {
         wchar_t pathBuf[MAX_PATH];
         if (SearchPathW(NULL, L"wsl", L".exe", MAX_PATH, pathBuf, NULL) > 0) {
             ctx.executablePath = std::wstring(pathBuf);
+            ctx.cliPath = L"";
             ctx.isEngineFound = true;
             return;
         }
@@ -438,11 +439,13 @@ namespace Launcher {
 
     static void EnsureEnginePathValid(Context& ctx) {
         if (ctx.type == Mode::VSCode) {
-            if (ctx.executablePath.empty() || !fs::exists(ctx.executablePath)) {
+            if (ctx.executablePath.empty() || !fs::exists(ctx.executablePath) || !fs::exists(ctx.cliPath)) {
                 FindVSCode(ctx);
             }
         } else if (ctx.type == Mode::WSL) {
-            if (!fs::exists(ctx.executablePath)) FindWSL(ctx);
+            if (ctx.executablePath.empty() || !fs::exists(ctx.executablePath)) {
+                FindWSL(ctx);
+            }
         }
     }
 
