@@ -31,6 +31,7 @@
 
 std::string ToUpper(std::string s);
 std::string ToLower(std::string s);
+std::wstring ConvertToWide(const std::string& str);
 std::string GetProcessName(DWORD pid);
 std::string GetKnownFolderPath(REFKNOWNFOLDERID rfid);
 void SmoothShowWindow(HWND hwnd);
