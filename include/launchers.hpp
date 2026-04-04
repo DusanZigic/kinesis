@@ -22,8 +22,10 @@ namespace Launcher {
 
     struct LayoutMetrics {
         int mainWinW, mainWinH, mainWinX, mainWinY;
-        int margin, currentY, innerWidth, editH;
-        int pathH, listH;
+        int margin, innerWidth;
+        int editH, editY;
+        int listH, listY;
+        int pathH, pathY;
         float mainFontSize, smallFontSize;
         int logoImgHeight, logoImgWidth;
         int logoFinalX, logoFinalY;

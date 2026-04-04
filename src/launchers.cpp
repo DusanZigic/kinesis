@@ -448,13 +448,18 @@ namespace Launcher {
         layoutMetrics.mainWinY = (screenH - layoutMetrics.mainWinH) / 3;
 
         layoutMetrics.margin     = layoutMetrics.mainWinW * 0.02;
-        layoutMetrics.currentY   = layoutMetrics.margin;
         layoutMetrics.innerWidth = layoutMetrics.mainWinW - (layoutMetrics.margin * 2);
+        int spacing = layoutMetrics.margin / 2;
 
         layoutMetrics.editH = layoutMetrics.mainWinH * 0.12;
+        layoutMetrics.editY = layoutMetrics.margin;
 
         layoutMetrics.pathH = layoutMetrics.mainWinH * 0.10;
-        layoutMetrics.listH = layoutMetrics.mainWinH - layoutMetrics.currentY - layoutMetrics.pathH - (layoutMetrics.margin * 2);
+        layoutMetrics.pathY = layoutMetrics.mainWinH - layoutMetrics.pathH - layoutMetrics.margin;
+
+        int editBottom = layoutMetrics.editY + layoutMetrics.editH;
+        layoutMetrics.listY = editBottom + spacing;
+        layoutMetrics.listH = layoutMetrics.pathY - spacing - layoutMetrics.listY;
 
         layoutMetrics.mainFontSize  = layoutMetrics.mainWinH * 0.06;
         layoutMetrics.smallFontSize = layoutMetrics.mainFontSize * 0.8;
@@ -903,9 +908,10 @@ namespace Launcher {
             WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
             "KinesisLauncher",
             NULL,
-            WS_POPUP | WS_VISIBLE,
+            WS_POPUP,
             layoutMetrics.mainWinX, layoutMetrics.mainWinY, layoutMetrics.mainWinW, layoutMetrics.mainWinH,
-            NULL, NULL,
+            NULL,
+            NULL,
             GetModuleHandle(NULL),
             NULL
         );
@@ -916,36 +922,31 @@ namespace Launcher {
             "EDIT",
             "",
             WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL,
-            layoutMetrics.margin, layoutMetrics.currentY, layoutMetrics.innerWidth, layoutMetrics.editH,
+            layoutMetrics.margin, layoutMetrics.editY, layoutMetrics.innerWidth, layoutMetrics.editH,
             hLauncherWindow,
             NULL,
             GetModuleHandle(NULL),
             NULL
         );
-        
-        layoutMetrics.currentY += layoutMetrics.editH + (layoutMetrics.margin / 2);
         
         hListBox = CreateWindowExA(
             0,
             "LISTBOX",
             NULL,
             WS_CHILD | WS_VISIBLE | WS_VSCROLL | LBS_NOTIFY | LBS_HASSTRINGS | LBS_OWNERDRAWFIXED,
-            layoutMetrics.margin, layoutMetrics.currentY, layoutMetrics.innerWidth, layoutMetrics.listH,
+            layoutMetrics.margin, layoutMetrics.listY, layoutMetrics.innerWidth, layoutMetrics.listH,
             hLauncherWindow,
             NULL,
             GetModuleHandle(NULL),
             NULL
         );
 
-        layoutMetrics.currentY += layoutMetrics.listH + (layoutMetrics.margin / 2);
-
         hPathLabel = CreateWindowExA(
             0,
             "STATIC",
             "",
             WS_CHILD | WS_VISIBLE | SS_LEFTNOWORDWRAP,
-            layoutMetrics.margin, layoutMetrics.currentY, layoutMetrics.innerWidth,
-            layoutMetrics.pathH,
+            layoutMetrics.margin, layoutMetrics.pathY, layoutMetrics.innerWidth, layoutMetrics.pathH,
             hLauncherWindow,
             NULL,
             GetModuleHandle(NULL),
