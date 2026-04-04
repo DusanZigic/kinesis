@@ -167,7 +167,10 @@ namespace Launcher {
             std::string line;
             while (std::getline(file, line)) {
                 if (!line.empty()) {
-                    ctx.history.push_back(UTF8ToW(line));
+                    std::wstring wPath = UTF8ToW(line);
+                    if (fs::exists(wPath)) {
+                        ctx.history.push_back(wPath);
+                    }
                 }
             }
             file.close();
