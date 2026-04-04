@@ -68,14 +68,14 @@ namespace Launcher {
             }
             if (cmdPath.empty() || !fs::exists(cmdPath)) continue;
 
-            std::ifstream file(cmdPath);
+            std::wifstream file(cmdPath);
             if (!file.is_open()) continue;
 
             fs::path scriptDir = cmdPath.parent_path();
 
-            std::string line;
+            std::wstring line;
             while (std::getline(file, line)) {
-                if (line.find("Code.exe") != std::string::npos && line.find("cli.js") != std::string::npos) {
+                if (line.find(L"Code.exe") != std::string::npos && line.find(L"cli.js") != std::string::npos) {
                     size_t exeOpen = line.find('"');
                     size_t exeClose = line.find('"', exeOpen + 1);
                     size_t cliOpen = line.find('"', exeClose + 1);
@@ -84,12 +84,12 @@ namespace Launcher {
                     if (exeOpen != std::string::npos && exeClose != std::string::npos &&
                         cliOpen != std::string::npos && cliClose != std::string::npos) {
                         
-                        std::string exeRaw = line.substr(exeOpen + 1, exeClose - exeOpen - 1);
-                        std::string cliRaw = line.substr(cliOpen + 1, cliClose - cliOpen - 1);
+                        std::wstring exeRaw = line.substr(exeOpen + 1, exeClose - exeOpen - 1);
+                        std::wstring cliRaw = line.substr(cliOpen + 1, cliClose - cliOpen - 1);
 
-                        auto ResolveRelative = [&](std::string p) {
-                            if (p.find("%~dp0") == 0) {
-                                p.replace(0, 5, "");
+                        auto ResolveRelative = [&](std::wstring p) {
+                            if (p.find(L"%~dp0") == 0) {
+                                p.replace(0, 5, L"");
                                 return (scriptDir / p).lexically_normal();
                             }
                             return fs::path(p);
