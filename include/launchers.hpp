@@ -106,16 +106,6 @@ namespace Launcher {
 
     };
 
-    struct FontAssets {
-        Gdiplus::Font* mainFont  = nullptr;
-        Gdiplus::Font* smallFont = nullptr;
-        
-        void Release() {
-            delete mainFont;   mainFont  = nullptr;
-            delete smallFont;  smallFont = nullptr;
-        }
-    };
-
     void Initialize();
     void Show(Mode mode);
     void ReleaseResources();
