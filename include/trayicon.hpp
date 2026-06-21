@@ -1,5 +1,7 @@
 #pragma once
 
+#include <windows.h>
+
 namespace Tray {
     inline constexpr UINT WM_TRAYICON = WM_USER + 1;
 

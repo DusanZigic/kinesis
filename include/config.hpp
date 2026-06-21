@@ -1,5 +1,9 @@
 #pragma once
 
+#include <string>
+#include <set>
+#include <map>
+
 namespace Config {
     struct Configuration {
         bool enableTabSwitcher;

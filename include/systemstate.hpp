@@ -1,5 +1,7 @@
 #pragma once
 
+#include <windef.h>
+
 namespace SystemState {
     extern HANDLE hMutex;
     extern UINT uTaskbarRestartMsg;

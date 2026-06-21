@@ -1,5 +1,7 @@
 #pragma once
 
+#include <windef.h>
+
 namespace TaskSwitcher {
     enum class SwitcherMode {
         None,
