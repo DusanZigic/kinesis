@@ -1,6 +1,14 @@
+#include "configui.hpp"
+
+#include <windows.h>
+#include <windowsx.h>
+#include <gdiplus.h>
+
+#include <string>
+#include <vector>
+
 #include "common.hpp"
 #include "config.hpp"
-#include "configui.hpp"
 
 namespace ConfigUI {
     enum ControlType {

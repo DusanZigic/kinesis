@@ -1,5 +1,21 @@
-#include "common.hpp"
 #include "launchers.hpp"
+
+#include <windows.h>
+#include <shlobj.h>
+#include <shlwapi.h>
+#include <commctrl.h>
+#include <gdiplus.h>
+
+#include <string>
+#include <vector>
+#include <algorithm>
+#include <fstream>
+#include <filesystem>
+#include <thread>
+#include <atomic>
+#include <mutex>
+
+#include "common.hpp"
 
 namespace fs = std::filesystem;
 

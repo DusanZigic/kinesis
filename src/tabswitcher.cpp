@@ -1,6 +1,11 @@
+#include "tabswitcher.hpp"
+
+#include <windows.h>
+
+#include <string>
+
 #include "common.hpp"
 #include "config.hpp"
-#include "tabswitcher.hpp"
 
 namespace TabSwitcher {
     bool SwitchTabs(DWORD vkCode) {

@@ -1,5 +1,10 @@
-#include "common.hpp"
 #include "systemstate.hpp"
+
+#include <windows.h>
+
+#include <string>
+
+#include "common.hpp"
 
 namespace SystemState {
     HANDLE hMutex = NULL;

@@ -1,3 +1,9 @@
+#include <windows.h>
+#include <commctrl.h>
+#include <gdiplus.h>
+
+#include <string>
+
 #include "common.hpp"
 #include "trayicon.hpp"
 #include "tabswitcher.hpp"

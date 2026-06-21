@@ -1,5 +1,8 @@
-#include "common.hpp"
 #include "quitsequence.hpp"
+
+#include <windows.h>
+
+#include "common.hpp"
 
 namespace QuitSequence {
 

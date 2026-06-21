@@ -1,10 +1,11 @@
+#include "trayicon.hpp"
+
+#include <windows.h>
+
 #include "common.hpp"
 #include "config.hpp"
 #include "systemstate.hpp"
 #include "configui.hpp"
-#include "trayicon.hpp"
-
-// #define ID_TRAY_APP_ICON 1001
 
 namespace Tray {
     constexpr UINT ID_TRAY_APP_ICON = 1001;

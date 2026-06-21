@@ -1,6 +1,17 @@
+#include "taskswitcher.hpp"
+
+#include <windows.h>
+#include <dwmapi.h>
+#include <commoncontrols.h>
+
+#include <string>
+#include <vector>
+#include <set>
+#include <cmath>
+#include <cstdint>
+
 #include "common.hpp"
 #include "config.hpp"
-#include "taskswitcher.hpp"
 
 #ifndef IID_IImageList
 extern "C" const GUID IID_IImageList = {0x46EB5926, 0x582E, 0x4017, {0x9F, 0xDF, 0xE8, 0x99, 0x8D, 0xAA, 0x09, 0x50}};
@@ -194,7 +205,7 @@ namespace TaskSwitcher {
         bmi.bmiHeader.biBitCount = 32;
         bmi.bmiHeader.biCompression = BI_RGB;
 
-        std::vector<uint32_t> pixels(bm.bmWidth * bm.bmHeight);
+        std::vector<std::uint32_t> pixels(bm.bmWidth * bm.bmHeight);
         HDC hdc = GetDC(NULL);
         GetDIBits(hdc, ii.hbmColor, 0, bm.bmHeight, pixels.data(), &bmi, DIB_RGB_COLORS);
         ReleaseDC(NULL, hdc);
@@ -204,7 +215,7 @@ namespace TaskSwitcher {
 
         for (int y = 0; y < bm.bmHeight; y++) {
             for (int x = 0; x < bm.bmWidth; x++) {
-                uint8_t alpha = (pixels[y * bm.bmWidth + x] >> 24);
+                std::uint8_t alpha = (pixels[y * bm.bmWidth + x] >> 24);
                 if (alpha > 20) {
                     if (x < minX) minX = x;
                     if (x > maxX) maxX = x;

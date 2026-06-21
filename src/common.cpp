@@ -1,5 +1,13 @@
 #include "common.hpp"
 
+#include <windows.h>
+#include <shlobj.h>
+#include <shlwapi.h>
+
+#include <string>
+#include <vector>
+#include <algorithm>
+
 namespace Common {
     std::string ToUpper(std::string s) {
         std::transform(s.begin(), s.end(), s.begin(), 
