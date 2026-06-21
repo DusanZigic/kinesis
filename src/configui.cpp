@@ -3,6 +3,54 @@
 #include "configui.hpp"
 
 namespace ConfigUI {
+    enum ControlType {
+        TOGGLE,
+        KEYBOX,
+        CHECKBOX,
+        BUTTON,
+        SCROLLBAR,
+    };
+
+    struct LayoutMetrics {
+        int windowW, windowH;
+        int windowX, windowY;
+        int headerHeight, headerGripWidth, headerGripHeight[2];
+        float headerGripPenWidth;
+        int paddingX;
+        int upperMargin, rowHeight, sectionSpacing;
+        int fontSizeLabel, fontSizeKeyBinding, fontSizeCheckBox, fontSizeDescription;
+        int toggleW, toggleH;
+        int keyBoxW, keyBoxH;
+        int checkBoxColumnN, checkBoxColumnWidth, checkBoxSize;
+        int buttonWidth, buttonHeight;
+        float labelWidth;
+        int footerHeight, footerTop;
+        int contentVisibleHeight;
+        int borderPenWidth, separatorPenWidth;
+        int scrollBarW, scrollBarMargin, scrollBarUpperPadding, scrollBarLowerPadding;
+        float scale;
+    };
+
+    struct FontAssets {
+        Gdiplus::Font* labelFont       = nullptr;
+        Gdiplus::Font* keyBindingFont  = nullptr;
+        Gdiplus::Font* checkBoxFont    = nullptr;
+        Gdiplus::Font* descriptionFont = nullptr;
+        
+        void Release() {
+            delete labelFont;       labelFont       = nullptr;
+            delete keyBindingFont;  keyBindingFont  = nullptr;
+            delete checkBoxFont;    checkBoxFont    = nullptr;
+            delete descriptionFont; descriptionFont = nullptr;
+        }
+    };
+
+    struct ClickZone {
+        RECT area;
+        ControlType type;
+        void* target;
+    };
+
     static HWND hConfigWindow = NULL;
     static bool isWndClassRegistered = false;
     static const wchar_t* szClassName = L"KinesisConfigWindow";
@@ -802,7 +850,7 @@ namespace ConfigUI {
             AllowSetForegroundWindow(ASFW_ANY);
             keybd_event(0xFC, 0, 0, 0);
             keybd_event(0xFC, 0, KEYEVENTF_KEYUP, 0);
-            SmoothShowWindow(hConfigWindow);
+            Common::SmoothShowWindow(hConfigWindow);
             SetForegroundWindow(hConfigWindow);
             SetActiveWindow(hConfigWindow);
             return;

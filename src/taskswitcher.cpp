@@ -6,635 +6,666 @@
 extern "C" const GUID IID_IImageList = {0x46EB5926, 0x582E, 0x4017, {0x9F, 0xDF, 0xE8, 0x99, 0x8D, 0xAA, 0x09, 0x50}};
 #endif
 
-static SwitcherMode currentMode = SwitcherMode::None;
+namespace TaskSwitcher {
+    struct WindowEntry {
+        HWND hwnd;
+        HICON hIcon;
+        RECT contentRect;
+        std::string title;
+    };
 
-static bool classRegistered = false;
-static HWND hSwitcherWindow = NULL;
-static HFONT hSwitcherFont = NULL;
-static HBRUSH hSwitcherBackBrush = NULL;
+    struct WindowData {
+        std::string targetProcessName;
+        std::vector<WindowEntry> windows;
+    };
 
-static std::set<std::string> seenProcessNames;
+    struct SwitcherLayout {
+        int winW;
+        int winH;
+        int thumbW;
+        int thumbH;
 
-static std::vector<HTHUMBNAIL> sessionThumbs;
+        int margin;
+        int spacing;
+        int titleHeight;
+        int fontSize;
+        int cols;
+        int rows;
 
-static SwitcherLayout cachedLayout;
+        int maxCols;
+    };
 
-static std::vector<WindowEntry> sessionWindows;
-static size_t sessionIndex = 0;
-static size_t lastAllAppsIndex = 0;
+    static SwitcherMode currentMode = SwitcherMode::None;
 
-static const COLORREF THEME_BG_COLOR = RGB(25, 25, 25);
-static const double MAX_SWITCHER_RELATIVE_WIDTH = 0.85;
-static const float ICON_MARGIN_RATIO = 0.12f;
+    static bool classRegistered = false;
+    static HWND hSwitcherWindow = NULL;
+    static HFONT hSwitcherFont = NULL;
+    static HBRUSH hSwitcherBackBrush = NULL;
 
-bool IsSwitcherActive() {
-    return currentMode != SwitcherMode::None;
-}
+    static std::set<std::string> seenProcessNames;
 
-SwitcherLayout CalculateSwitcherLayout(size_t count, SwitcherMode mode) {
-    SwitcherLayout layout;
+    static std::vector<HTHUMBNAIL> sessionThumbs;
 
-    double screenW = GetSystemMetrics(SM_CXSCREEN);
-    double screenH = GetSystemMetrics(SM_CYSCREEN);
-    
-    layout.margin      = (int)(0.013*screenW);
-    layout.spacing     = (int)(0.010*screenW);
-    layout.titleHeight = (int)(0.046*screenH);
-    layout.fontSize    = (int)(0.450*layout.titleHeight);
+    static SwitcherLayout cachedLayout;
 
-    if (mode == SwitcherMode::AllApps) {
-        layout.maxCols = 7;
-        layout.cols = (count < (size_t)layout.maxCols) ? (int)count : layout.maxCols;
-        layout.rows = (int)std::ceil((double)count / layout.cols);
-        layout.thumbW = (int)(0.07 * screenW);
-        layout.thumbH = layout.thumbW;
+    static std::vector<WindowEntry> sessionWindows;
+    static size_t sessionIndex = 0;
+    static size_t lastAllAppsIndex = 0;
+
+    static const COLORREF THEME_BG_COLOR = RGB(25, 25, 25);
+    static const double MAX_SWITCHER_RELATIVE_WIDTH = 0.85;
+    static const float ICON_MARGIN_RATIO = 0.12f;
+
+    bool IsSwitcherActive() {
+        return currentMode != SwitcherMode::None;
     }
-    else if (mode == SwitcherMode::SameApp) {
-        layout.maxCols = 4;
-        layout.cols = (count < (size_t)layout.maxCols) ? (int)count : layout.maxCols;
-        layout.rows = (int)std::ceil((double)count / layout.cols);
-        double maxSwitcherWidth = screenW*MAX_SWITCHER_RELATIVE_WIDTH;
-        int usableWidth = (int)maxSwitcherWidth - 2*layout.margin - (layout.cols - 1)*layout.spacing;
-        double  aspect = screenW/screenH;
-        layout.thumbW = usableWidth / layout.cols;
-        layout.thumbH = (int)(layout.thumbW / aspect);
-    }
+
+    SwitcherLayout CalculateSwitcherLayout(size_t count, SwitcherMode mode) {
+        SwitcherLayout layout;
+
+        double screenW = GetSystemMetrics(SM_CXSCREEN);
+        double screenH = GetSystemMetrics(SM_CYSCREEN);
         
-    layout.winW = layout.cols*layout.thumbW + (layout.cols - 1)*layout.spacing + 2*layout.margin;
-    layout.winH = layout.rows*layout.thumbH + (layout.rows - 1)*layout.spacing + 2*layout.margin + layout.titleHeight;
+        layout.margin      = (int)(0.013*screenW);
+        layout.spacing     = (int)(0.010*screenW);
+        layout.titleHeight = (int)(0.046*screenH);
+        layout.fontSize    = (int)(0.450*layout.titleHeight);
 
-    double maxHeight = screenH * 0.95;
-    if (layout.winH > maxHeight) {
-        double scaleFactor = maxHeight / layout.winH;
-        layout.thumbW = (int)(layout.thumbW * scaleFactor);
-        layout.thumbH = (int)(layout.thumbH * scaleFactor);
-        layout.winW   = (int)(layout.winW   * scaleFactor);
-        layout.winH   = (int)(layout.winH   * scaleFactor);
+        if (mode == SwitcherMode::AllApps) {
+            layout.maxCols = 7;
+            layout.cols = (count < (size_t)layout.maxCols) ? (int)count : layout.maxCols;
+            layout.rows = (int)std::ceil((double)count / layout.cols);
+            layout.thumbW = (int)(0.07 * screenW);
+            layout.thumbH = layout.thumbW;
+        }
+        else if (mode == SwitcherMode::SameApp) {
+            layout.maxCols = 4;
+            layout.cols = (count < (size_t)layout.maxCols) ? (int)count : layout.maxCols;
+            layout.rows = (int)std::ceil((double)count / layout.cols);
+            double maxSwitcherWidth = screenW*MAX_SWITCHER_RELATIVE_WIDTH;
+            int usableWidth = (int)maxSwitcherWidth - 2*layout.margin - (layout.cols - 1)*layout.spacing;
+            double  aspect = screenW/screenH;
+            layout.thumbW = usableWidth / layout.cols;
+            layout.thumbH = (int)(layout.thumbW / aspect);
+        }
+            
+        layout.winW = layout.cols*layout.thumbW + (layout.cols - 1)*layout.spacing + 2*layout.margin;
+        layout.winH = layout.rows*layout.thumbH + (layout.rows - 1)*layout.spacing + 2*layout.margin + layout.titleHeight;
+
+        double maxHeight = screenH * 0.95;
+        if (layout.winH > maxHeight) {
+            double scaleFactor = maxHeight / layout.winH;
+            layout.thumbW = (int)(layout.thumbW * scaleFactor);
+            layout.thumbH = (int)(layout.thumbH * scaleFactor);
+            layout.winW   = (int)(layout.winW   * scaleFactor);
+            layout.winH   = (int)(layout.winH   * scaleFactor);
+        }
+
+        return layout;
     }
 
-    return layout;
-}
+    RECT GetThumbRect(const SwitcherLayout& layout, size_t index, size_t count) {
+        int col = (int)index % layout.cols;
+        int row = (int)index / layout.cols;
+        
+        RECT r;
+        r.left   = layout.margin + col*(layout.thumbW + layout.spacing);
+        r.top    = layout.margin + layout.titleHeight + row*(layout.thumbH + layout.spacing);
+        r.right  = r.left + layout.thumbW;
+        r.bottom = r.top + layout.thumbH;
 
-RECT GetThumbRect(const SwitcherLayout& layout, size_t index, size_t count) {
-    int col = (int)index % layout.cols;
-    int row = (int)index / layout.cols;
-    
-    RECT r;
-    r.left   = layout.margin + col*(layout.thumbW + layout.spacing);
-    r.top    = layout.margin + layout.titleHeight + row*(layout.thumbH + layout.spacing);
-    r.right  = r.left + layout.thumbW;
-    r.bottom = r.top + layout.thumbH;
+        int windowsInThisRow = (row == layout.rows - 1) ? (count % layout.cols) : layout.cols;
+        if (windowsInThisRow == 0) {
+            windowsInThisRow = layout.cols;
+        }
 
-    int windowsInThisRow = (row == layout.rows - 1) ? (count % layout.cols) : layout.cols;
-    if (windowsInThisRow == 0) {
-        windowsInThisRow = layout.cols;
+        if (windowsInThisRow < layout.cols) {
+            int rowWidth = windowsInThisRow*layout.thumbW + (windowsInThisRow - 1)*layout.spacing;
+            int totalWidth = layout.cols*layout.thumbW + (layout.cols - 1)*layout.spacing;
+            int offset = (totalWidth - rowWidth)/2;
+            r.left += offset;
+            r.right += offset;
+        }
+
+        return r;
     }
 
-    if (windowsInThisRow < layout.cols) {
-        int rowWidth = windowsInThisRow*layout.thumbW + (windowsInThisRow - 1)*layout.spacing;
-        int totalWidth = layout.cols*layout.thumbW + (layout.cols - 1)*layout.spacing;
-        int offset = (totalWidth - rowWidth)/2;
-        r.left += offset;
-        r.right += offset;
-    }
-
-    return r;
-}
-
-HICON GetHighResIcon(HWND hwnd) {
-    HICON hIcon = NULL;
-    char path[MAX_PATH];
-    DWORD processId;
-    GetWindowThreadProcessId(hwnd, &processId);
-    HANDLE hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, processId);
-    
-    if (hProcess) {
-        DWORD size = MAX_PATH;
-        if (QueryFullProcessImageNameA(hProcess, 0, path, &size)) {
-            SHFILEINFOA sfi {};
-            if (SHGetFileInfoA(path, 0, &sfi, sizeof(sfi), SHGFI_SYSICONINDEX)) {
-                IImageList* piml = NULL;
-                if (SUCCEEDED(SHGetImageList(SHIL_JUMBO, IID_IImageList, (void**)&piml))) {
-                    piml->GetIcon(sfi.iIcon, ILD_TRANSPARENT, &hIcon);
-                    piml->Release();
-                }
-                if (!hIcon && SUCCEEDED(SHGetImageList(SHIL_EXTRALARGE, IID_IImageList, (void**)&piml))) {
-                    if (SHGetFileInfoA(path, 0, &sfi, sizeof(sfi), SHGFI_ICON | SHGFI_LARGEICON)) {
+    HICON GetHighResIcon(HWND hwnd) {
+        HICON hIcon = NULL;
+        char path[MAX_PATH];
+        DWORD processId;
+        GetWindowThreadProcessId(hwnd, &processId);
+        HANDLE hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, processId);
+        
+        if (hProcess) {
+            DWORD size = MAX_PATH;
+            if (QueryFullProcessImageNameA(hProcess, 0, path, &size)) {
+                SHFILEINFOA sfi {};
+                if (SHGetFileInfoA(path, 0, &sfi, sizeof(sfi), SHGFI_SYSICONINDEX)) {
+                    IImageList* piml = NULL;
+                    if (SUCCEEDED(SHGetImageList(SHIL_JUMBO, IID_IImageList, (void**)&piml))) {
                         piml->GetIcon(sfi.iIcon, ILD_TRANSPARENT, &hIcon);
                         piml->Release();
                     }
+                    if (!hIcon && SUCCEEDED(SHGetImageList(SHIL_EXTRALARGE, IID_IImageList, (void**)&piml))) {
+                        if (SHGetFileInfoA(path, 0, &sfi, sizeof(sfi), SHGFI_ICON | SHGFI_LARGEICON)) {
+                            piml->GetIcon(sfi.iIcon, ILD_TRANSPARENT, &hIcon);
+                            piml->Release();
+                        }
+                    }
+                }
+                if (!hIcon) {
+                    SHFILEINFOA sfiStandard {};
+                    if (SHGetFileInfoA(path, 0, &sfiStandard, sizeof(sfiStandard), SHGFI_ICON | SHGFI_LARGEICON)) {
+                        hIcon = sfiStandard.hIcon;
+                    }
                 }
             }
-            if (!hIcon) {
-                SHFILEINFOA sfiStandard {};
-                if (SHGetFileInfoA(path, 0, &sfiStandard, sizeof(sfiStandard), SHGFI_ICON | SHGFI_LARGEICON)) {
-                    hIcon = sfiStandard.hIcon;
+            CloseHandle(hProcess);
+        }
+
+        if (!hIcon) {
+            SendMessageTimeout(hwnd, WM_GETICON, ICON_BIG, 0, SMTO_ABORTIFHUNG, 100, (PDWORD_PTR)&hIcon);
+        }
+
+        if (!hIcon) {
+            hIcon = (HICON)GetClassLongPtr(hwnd, GCLP_HICON);
+        }
+
+        if (!hIcon) {
+            hIcon = LoadIcon(NULL, IDI_APPLICATION);
+        }
+        
+        return hIcon;
+    }
+
+    RECT GetIconContentRect(HICON hIcon) {
+        ICONINFO ii;
+        GetIconInfo(hIcon, &ii);
+
+        BITMAP bm;
+        GetObject(ii.hbmColor, sizeof(bm), &bm);
+
+        BITMAPINFO bmi {};
+        bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+        bmi.bmiHeader.biWidth = bm.bmWidth;
+        bmi.bmiHeader.biHeight = -bm.bmHeight;
+        bmi.bmiHeader.biPlanes = 1;
+        bmi.bmiHeader.biBitCount = 32;
+        bmi.bmiHeader.biCompression = BI_RGB;
+
+        std::vector<uint32_t> pixels(bm.bmWidth * bm.bmHeight);
+        HDC hdc = GetDC(NULL);
+        GetDIBits(hdc, ii.hbmColor, 0, bm.bmHeight, pixels.data(), &bmi, DIB_RGB_COLORS);
+        ReleaseDC(NULL, hdc);
+
+        int minX = bm.bmWidth, minY = bm.bmHeight, maxX = 0, maxY = 0;
+        bool found = false;
+
+        for (int y = 0; y < bm.bmHeight; y++) {
+            for (int x = 0; x < bm.bmWidth; x++) {
+                uint8_t alpha = (pixels[y * bm.bmWidth + x] >> 24);
+                if (alpha > 20) {
+                    if (x < minX) minX = x;
+                    if (x > maxX) maxX = x;
+                    if (y < minY) minY = y;
+                    if (y > maxY) maxY = y;
+                    found = true;
                 }
             }
         }
-        CloseHandle(hProcess);
+
+        DeleteObject(ii.hbmColor);
+        DeleteObject(ii.hbmMask);
+
+        if (!found) return {0, 0, bm.bmWidth, bm.bmHeight};
+
+        int rawW = maxX - minX;
+        int rawH = maxY - minY;
+
+        int marginX = (int)(rawW * ICON_MARGIN_RATIO);
+        int marginY = (int)(rawH * ICON_MARGIN_RATIO);
+
+        RECT finalRect;
+        finalRect.left   = (minX - marginX < 0) ? 0 : minX - marginX;
+        finalRect.top    = (minY - marginY < 0) ? 0 : minY - marginY;
+        finalRect.right  = (maxX + marginX > bm.bmWidth)  ? bm.bmWidth  : maxX + marginX;
+        finalRect.bottom = (maxY + marginY > bm.bmHeight) ? bm.bmHeight : maxY + marginY;
+
+        return finalRect;
     }
 
-    if (!hIcon) {
-        SendMessageTimeout(hwnd, WM_GETICON, ICON_BIG, 0, SMTO_ABORTIFHUNG, 100, (PDWORD_PTR)&hIcon);
-    }
+    static BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) {
+        WindowData* wData = (WindowData*)lParam;
+        DWORD windowPid;
+        GetWindowThreadProcessId(hwnd, &windowPid);
+        std::string windowProcessName = Common::GetProcessName(windowPid);
 
-    if (!hIcon) {
-        hIcon = (HICON)GetClassLongPtr(hwnd, GCLP_HICON);
-    }
+        if (windowProcessName == wData->targetProcessName) {
+            if (!IsWindowVisible(hwnd)) return TRUE;
 
-    if (!hIcon) {
-        hIcon = LoadIcon(NULL, IDI_APPLICATION);
-    }
-    
-    return hIcon;
-}
+            int cloaked = 0;
+            DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, &cloaked, sizeof(cloaked));
+            if (cloaked) return TRUE;
 
-RECT GetIconContentRect(HICON hIcon) {
-    ICONINFO ii;
-    GetIconInfo(hIcon, &ii);
+            LONG exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
+            if ((exStyle & WS_EX_TOOLWINDOW) && !(exStyle & WS_EX_APPWINDOW)) return TRUE;
 
-    BITMAP bm;
-    GetObject(ii.hbmColor, sizeof(bm), &bm);
+            int len = GetWindowTextLengthA(hwnd);
+            if (len == 0) return TRUE;
 
-    BITMAPINFO bmi {};
-    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-    bmi.bmiHeader.biWidth = bm.bmWidth;
-    bmi.bmiHeader.biHeight = -bm.bmHeight;
-    bmi.bmiHeader.biPlanes = 1;
-    bmi.bmiHeader.biBitCount = 32;
-    bmi.bmiHeader.biCompression = BI_RGB;
-
-    std::vector<uint32_t> pixels(bm.bmWidth * bm.bmHeight);
-    HDC hdc = GetDC(NULL);
-    GetDIBits(hdc, ii.hbmColor, 0, bm.bmHeight, pixels.data(), &bmi, DIB_RGB_COLORS);
-    ReleaseDC(NULL, hdc);
-
-    int minX = bm.bmWidth, minY = bm.bmHeight, maxX = 0, maxY = 0;
-    bool found = false;
-
-    for (int y = 0; y < bm.bmHeight; y++) {
-        for (int x = 0; x < bm.bmWidth; x++) {
-            uint8_t alpha = (pixels[y * bm.bmWidth + x] >> 24);
-            if (alpha > 20) {
-                if (x < minX) minX = x;
-                if (x > maxX) maxX = x;
-                if (y < minY) minY = y;
-                if (y > maxY) maxY = y;
-                found = true;
-            }
+            WindowEntry entry;
+            entry.hwnd = hwnd;
+            entry.hIcon = NULL;
+            entry.contentRect = {0, 0, 0, 0};
+            char title[256];
+            GetWindowTextA(hwnd, title, sizeof(title));
+            entry.title = title;
+            wData->windows.push_back(entry);
         }
+        return TRUE;
     }
 
-    DeleteObject(ii.hbmColor);
-    DeleteObject(ii.hbmMask);
+    static BOOL CALLBACK EnumAllWindowsProc(HWND hwnd, LPARAM lParam) {
+        WindowData* wData = (WindowData*)lParam;
 
-    if (!found) return {0, 0, bm.bmWidth, bm.bmHeight};
-
-    int rawW = maxX - minX;
-    int rawH = maxY - minY;
-
-    int marginX = (int)(rawW * ICON_MARGIN_RATIO);
-    int marginY = (int)(rawH * ICON_MARGIN_RATIO);
-
-    RECT finalRect;
-    finalRect.left   = (minX - marginX < 0) ? 0 : minX - marginX;
-    finalRect.top    = (minY - marginY < 0) ? 0 : minY - marginY;
-    finalRect.right  = (maxX + marginX > bm.bmWidth)  ? bm.bmWidth  : maxX + marginX;
-    finalRect.bottom = (maxY + marginY > bm.bmHeight) ? bm.bmHeight : maxY + marginY;
-
-    return finalRect;
-}
-
-static BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) {
-    WindowData* wData = (WindowData*)lParam;
-    DWORD windowPid;
-    GetWindowThreadProcessId(hwnd, &windowPid);
-    std::string windowProcessName = GetProcessName(windowPid);
-
-    if (windowProcessName == wData->targetProcessName) {
         if (!IsWindowVisible(hwnd)) return TRUE;
+
+        if (GetWindowTextLength(hwnd) == 0) return TRUE;
 
         int cloaked = 0;
         DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, &cloaked, sizeof(cloaked));
         if (cloaked) return TRUE;
 
+        char className[256];
+        GetClassNameA(hwnd, className, sizeof(className));
+        if (strstr(className, "TrayWnd") || strstr(className, "Progman") || strstr(className, "ControlCenter")) {
+            return TRUE;
+        }
+
         LONG exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
         if ((exStyle & WS_EX_TOOLWINDOW) && !(exStyle & WS_EX_APPWINDOW)) return TRUE;
+        if (GetWindow(hwnd, GW_OWNER) != NULL && !(exStyle & WS_EX_APPWINDOW)) return TRUE;
 
-        int len = GetWindowTextLengthA(hwnd);
-        if (len == 0) return TRUE;
+        DWORD pid;
+        GetWindowThreadProcessId(hwnd, &pid);
+        std::string processName = Common::GetProcessName(pid);
 
-        WindowEntry entry;
-        entry.hwnd = hwnd;
-        entry.hIcon = NULL;
-        entry.contentRect = {0, 0, 0, 0};
-        char title[256];
-        GetWindowTextA(hwnd, title, sizeof(title));
-        entry.title = title;
-        wData->windows.push_back(entry);
-    }
-    return TRUE;
-}
+        if (seenProcessNames.find(processName) == seenProcessNames.end()) {
+            seenProcessNames.insert(processName);
+            WindowEntry entry;
+            entry.hwnd = hwnd;
+            entry.hIcon = GetHighResIcon(hwnd);
+            entry.contentRect = GetIconContentRect(entry.hIcon);
+            char title[256];
+            GetWindowTextA(hwnd, title, sizeof(title));
+            entry.title = title;
+            wData->windows.push_back(entry);
+        }
 
-static BOOL CALLBACK EnumAllWindowsProc(HWND hwnd, LPARAM lParam) {
-    WindowData* wData = (WindowData*)lParam;
-
-    if (!IsWindowVisible(hwnd)) return TRUE;
-
-    if (GetWindowTextLength(hwnd) == 0) return TRUE;
-
-    int cloaked = 0;
-    DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, &cloaked, sizeof(cloaked));
-    if (cloaked) return TRUE;
-
-    char className[256];
-    GetClassNameA(hwnd, className, sizeof(className));
-    if (strstr(className, "TrayWnd") || strstr(className, "Progman") || strstr(className, "ControlCenter")) {
         return TRUE;
     }
 
-    LONG exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
-    if ((exStyle & WS_EX_TOOLWINDOW) && !(exStyle & WS_EX_APPWINDOW)) return TRUE;
-    if (GetWindow(hwnd, GW_OWNER) != NULL && !(exStyle & WS_EX_APPWINDOW)) return TRUE;
+    static LRESULT CALLBACK SwitcherWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+        switch (msg) {
+            case WM_PAINT: {
+                PAINTSTRUCT ps;
+                HDC hdc = BeginPaint(hwnd, &ps);
+                FillRect(hdc, &ps.rcPaint, hSwitcherBackBrush);
 
-    DWORD pid;
-    GetWindowThreadProcessId(hwnd, &pid);
-    std::string processName = GetProcessName(pid);
+                if (currentMode != SwitcherMode::None && !sessionWindows.empty()) {
+                    HFONT oldFont = (HFONT)SelectObject(hdc, hSwitcherFont);
+                    std::string currentTitle = sessionWindows[sessionIndex].title;
+                    SetTextColor(hdc, RGB(255, 255, 255));
+                    SetBkMode(hdc, TRANSPARENT);
+                    RECT titleRect = { 0, 0, cachedLayout.winW, cachedLayout.titleHeight };
+                    DrawTextA(hdc, currentTitle.c_str(), -1, &titleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
 
-    if (seenProcessNames.find(processName) == seenProcessNames.end()) {
-        seenProcessNames.insert(processName);
-        WindowEntry entry;
-        entry.hwnd = hwnd;
-        entry.hIcon = GetHighResIcon(hwnd);
-        entry.contentRect = GetIconContentRect(entry.hIcon);
-        char title[256];
-        GetWindowTextA(hwnd, title, sizeof(title));
-        entry.title = title;
-        wData->windows.push_back(entry);
-    }
+                    if (currentMode == SwitcherMode::AllApps) {
+                        for (size_t i = 0; i < sessionWindows.size(); ++i) {
+                            RECT r = GetThumbRect(cachedLayout, i, sessionWindows.size());
+                            HICON hIcon = sessionWindows[i].hIcon;
+                            RECT contentRect = sessionWindows[i].contentRect;
+                            if (hIcon) {
+                                int iconSize = (int)(cachedLayout.thumbH * 0.65);
+                                int x = r.left + (cachedLayout.thumbW - iconSize) / 2;
+                                int y = r.top + (cachedLayout.thumbH - iconSize) / 2;
+                                
+                                int contentW = contentRect.right - contentRect.left;
+                                int contentH = contentRect.bottom - contentRect.top;
 
-    return TRUE;
-}
+                                static const int CROP_THRESHOLD = (int)(256 * (1.0f - ICON_MARGIN_RATIO));
 
-static LRESULT CALLBACK SwitcherWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-    switch (msg) {
-        case WM_PAINT: {
-            PAINTSTRUCT ps;
-            HDC hdc = BeginPaint(hwnd, &ps);
-            FillRect(hdc, &ps.rcPaint, hSwitcherBackBrush);
+                                if (contentW > 0 && contentH > 0 && contentW < CROP_THRESHOLD) {
+                                    HDC hMemDC = CreateCompatibleDC(hdc);
+                                    HBITMAP hMemBmp = CreateCompatibleBitmap(hdc, 256, 256); 
+                                    HGDIOBJ oldBmp = SelectObject(hMemDC, hMemBmp);
 
-            if (currentMode != SwitcherMode::None && !sessionWindows.empty()) {
-                HFONT oldFont = (HFONT)SelectObject(hdc, hSwitcherFont);
-                std::string currentTitle = sessionWindows[sessionIndex].title;
-                SetTextColor(hdc, RGB(255, 255, 255));
-                SetBkMode(hdc, TRANSPARENT);
-                RECT titleRect = { 0, 0, cachedLayout.winW, cachedLayout.titleHeight };
-                DrawTextA(hdc, currentTitle.c_str(), -1, &titleRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
+                                    RECT memRect = {0, 0, 256, 256};
+                                    FillRect(hMemDC, &memRect, hSwitcherBackBrush);
 
-                if (currentMode == SwitcherMode::AllApps) {
-                    for (size_t i = 0; i < sessionWindows.size(); ++i) {
-                        RECT r = GetThumbRect(cachedLayout, i, sessionWindows.size());
-                        HICON hIcon = sessionWindows[i].hIcon;
-                        RECT contentRect = sessionWindows[i].contentRect;
-                        if (hIcon) {
-                            int iconSize = (int)(cachedLayout.thumbH * 0.65);
-                            int x = r.left + (cachedLayout.thumbW - iconSize) / 2;
-                            int y = r.top + (cachedLayout.thumbH - iconSize) / 2;
-                            
-                            int contentW = contentRect.right - contentRect.left;
-                            int contentH = contentRect.bottom - contentRect.top;
+                                    DrawIconEx(hMemDC, 0, 0, hIcon, 256, 256, 0, NULL, DI_NORMAL);
 
-                            static const int CROP_THRESHOLD = (int)(256 * (1.0f - ICON_MARGIN_RATIO));
+                                    StretchBlt(
+                                        hdc,
+                                        x, y, iconSize, iconSize,
+                                        hMemDC,
+                                        contentRect.left, contentRect.top,
+                                        contentW, contentH,
+                                        SRCCOPY
+                                    );
 
-                            if (contentW > 0 && contentH > 0 && contentW < CROP_THRESHOLD) {
-                                HDC hMemDC = CreateCompatibleDC(hdc);
-                                HBITMAP hMemBmp = CreateCompatibleBitmap(hdc, 256, 256); 
-                                HGDIOBJ oldBmp = SelectObject(hMemDC, hMemBmp);
-
-                                RECT memRect = {0, 0, 256, 256};
-                                FillRect(hMemDC, &memRect, hSwitcherBackBrush);
-
-                                DrawIconEx(hMemDC, 0, 0, hIcon, 256, 256, 0, NULL, DI_NORMAL);
-
-                                StretchBlt(
-                                    hdc,
-                                    x, y, iconSize, iconSize,
-                                    hMemDC,
-                                    contentRect.left, contentRect.top,
-                                    contentW, contentH,
-                                    SRCCOPY
-                                );
-
-                                SelectObject(hMemDC, oldBmp);
-                                DeleteObject(hMemBmp);
-                                DeleteDC(hMemDC);
-                            } else {                            
-                                DrawIconEx(hdc, x, y, hIcon, iconSize, iconSize, 0, NULL, DI_NORMAL);
+                                    SelectObject(hMemDC, oldBmp);
+                                    DeleteObject(hMemBmp);
+                                    DeleteDC(hMemDC);
+                                } else {                            
+                                    DrawIconEx(hdc, x, y, hIcon, iconSize, iconSize, 0, NULL, DI_NORMAL);
+                                }
                             }
                         }
                     }
+
+                    RECT highlightRect = GetThumbRect(cachedLayout, sessionIndex, sessionWindows.size());
+                    InflateRect(&highlightRect, 6, 6);
+                    HPEN hPen = CreatePen(PS_SOLID, 3, RGB(211, 211, 211)); 
+                    HGDIOBJ oldPen = SelectObject(hdc, hPen);
+                    HGDIOBJ oldBrush = SelectObject(hdc, GetStockObject(NULL_BRUSH));
+                    RoundRect(hdc, highlightRect.left, highlightRect.top, highlightRect.right, highlightRect.bottom, 15, 15);
+
+                    SelectObject(hdc, oldFont);
+                    SelectObject(hdc, oldPen);
+                    SelectObject(hdc, oldBrush);
+                    DeleteObject(hPen);
                 }
-
-                RECT highlightRect = GetThumbRect(cachedLayout, sessionIndex, sessionWindows.size());
-                InflateRect(&highlightRect, 6, 6);
-                HPEN hPen = CreatePen(PS_SOLID, 3, RGB(211, 211, 211)); 
-                HGDIOBJ oldPen = SelectObject(hdc, hPen);
-                HGDIOBJ oldBrush = SelectObject(hdc, GetStockObject(NULL_BRUSH));
-                RoundRect(hdc, highlightRect.left, highlightRect.top, highlightRect.right, highlightRect.bottom, 15, 15);
-
-                SelectObject(hdc, oldFont);
-                SelectObject(hdc, oldPen);
-                SelectObject(hdc, oldBrush);
-                DeleteObject(hPen);
+                EndPaint(hwnd, &ps);
+                return 0;
             }
-            EndPaint(hwnd, &ps);
-            return 0;
-        }
-        case WM_ERASEBKGND: {
-            return 0;
-        }
-    }
-    return DefWindowProc(hwnd, msg, wParam, lParam);
-}
-
-static void CreateSwitcherUI() {
-    if (hSwitcherWindow) return;
-
-    if (!classRegistered) {
-        hSwitcherBackBrush = CreateSolidBrush(THEME_BG_COLOR);
-        
-        WNDCLASSA wndClass {};
-        wndClass.lpfnWndProc   = SwitcherWndProc;
-        wndClass.hInstance     = GetModuleHandle(NULL);
-        wndClass.lpszClassName = "SwitcherCanvas";
-        wndClass.hbrBackground = hSwitcherBackBrush;
-        wndClass.hCursor       = LoadCursor(NULL, IDC_ARROW);
-        
-        if (RegisterClassA(&wndClass)) {
-            classRegistered = true;
-        }
-    }
-
-    if (!hSwitcherFont) {
-        hSwitcherFont = CreateFontA(-cachedLayout.fontSize, 0, 0, 0, FW_SEMIBOLD, 
-                                   FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, 
-                                   CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, VARIABLE_PITCH, "Consolas");
-    }
-
-    int x = (GetSystemMetrics(SM_CXSCREEN) - cachedLayout.winW)/2;
-    int y = (GetSystemMetrics(SM_CYSCREEN) - cachedLayout.winH)/2;
-
-    hSwitcherWindow = CreateWindowExA(
-        WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TOOLWINDOW, 
-        "SwitcherCanvas",
-        NULL,
-        WS_POPUP | WS_VISIBLE, 
-        x, y, cachedLayout.winW, cachedLayout.winH, 
-        NULL, NULL,
-        GetModuleHandle(NULL),
-        NULL
-    );
-
-    SetLayeredWindowAttributes(hSwitcherWindow, 0, 255, LWA_ALPHA);
-}
-
-static void UpdateThumbnailGallery() {
-    if (sessionWindows.empty()) return;
-
-    if (currentMode == SwitcherMode::AllApps) {
-        for (auto t : sessionThumbs) DwmUnregisterThumbnail(t);
-        sessionThumbs.clear();
-        return; 
-    }
-
-    bool isInitialLoad = sessionThumbs.empty();
-
-    DWM_THUMBNAIL_PROPERTIES props {};
-    props.dwFlags = DWM_TNP_VISIBLE | DWM_TNP_RECTDESTINATION | DWM_TNP_OPACITY | DWM_TNP_SOURCECLIENTAREAONLY;
-    props.fSourceClientAreaOnly = TRUE;
-    props.fVisible = TRUE;
-
-    for (size_t i=0; i<sessionWindows.size(); ++i) {
-        HTHUMBNAIL hCurrentThumb = NULL;
-        if (isInitialLoad) {
-            if (SUCCEEDED(DwmRegisterThumbnail(hSwitcherWindow, sessionWindows[i].hwnd, &hCurrentThumb))) {
-                sessionThumbs.push_back(hCurrentThumb);
-            } else {
-                hCurrentThumb = sessionThumbs[i];
-            }
-            if (hCurrentThumb) {
-                props.opacity = (i == sessionIndex) ? 255 : 170;
-                props.rcDestination = GetThumbRect(cachedLayout, i, sessionWindows.size());
-                DwmUpdateThumbnailProperties(hCurrentThumb, &props);
+            case WM_ERASEBKGND: {
+                return 0;
             }
         }
-    }
-}
-
-void HandleArrowNavigation(DWORD vkCode) {
-    if (sessionWindows.empty()) {
-        return;
+        return DefWindowProc(hwnd, msg, wParam, lParam);
     }
 
-    int count = (int)sessionWindows.size();
-    int cols = cachedLayout.cols;
+    static void CreateSwitcherUI() {
+        if (hSwitcherWindow) return;
 
-    int currentIndex = (int)sessionIndex;
-    
-    switch (vkCode) {
-        case VK_LEFT: {
-            currentIndex = (currentIndex - 1 + count) % count;
-            break;
+        if (!classRegistered) {
+            hSwitcherBackBrush = CreateSolidBrush(THEME_BG_COLOR);
+            
+            WNDCLASSA wndClass {};
+            wndClass.lpfnWndProc   = SwitcherWndProc;
+            wndClass.hInstance     = GetModuleHandle(NULL);
+            wndClass.lpszClassName = "SwitcherCanvas";
+            wndClass.hbrBackground = hSwitcherBackBrush;
+            wndClass.hCursor       = LoadCursor(NULL, IDC_ARROW);
+            
+            if (RegisterClassA(&wndClass)) {
+                classRegistered = true;
+            }
         }
-        case VK_RIGHT: {
-            currentIndex = (currentIndex + 1) % count;
-            break;
+
+        if (!hSwitcherFont) {
+            hSwitcherFont = CreateFontA(-cachedLayout.fontSize, 0, 0, 0, FW_SEMIBOLD, 
+                                    FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, 
+                                    CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, VARIABLE_PITCH, "Consolas");
         }
-        case VK_UP: {
-            if (currentIndex >= cols) {
-                currentIndex -= cols;
-            } else {
-                int currentCol = currentIndex % cols;
-                int lastRowStart = ((count - 1) / cols) * cols;
-                int targetIndex = lastRowStart + currentCol;
-                if (targetIndex >= count) {
-                    currentIndex = count - 1;
+
+        int x = (GetSystemMetrics(SM_CXSCREEN) - cachedLayout.winW)/2;
+        int y = (GetSystemMetrics(SM_CYSCREEN) - cachedLayout.winH)/2;
+
+        hSwitcherWindow = CreateWindowExA(
+            WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TOOLWINDOW, 
+            "SwitcherCanvas",
+            NULL,
+            WS_POPUP | WS_VISIBLE, 
+            x, y, cachedLayout.winW, cachedLayout.winH, 
+            NULL, NULL,
+            GetModuleHandle(NULL),
+            NULL
+        );
+
+        SetLayeredWindowAttributes(hSwitcherWindow, 0, 255, LWA_ALPHA);
+    }
+
+    static void UpdateThumbnailGallery() {
+        if (sessionWindows.empty()) return;
+
+        if (currentMode == SwitcherMode::AllApps) {
+            for (auto t : sessionThumbs) DwmUnregisterThumbnail(t);
+            sessionThumbs.clear();
+            return; 
+        }
+
+        bool isInitialLoad = sessionThumbs.empty();
+
+        DWM_THUMBNAIL_PROPERTIES props {};
+        props.dwFlags = DWM_TNP_VISIBLE | DWM_TNP_RECTDESTINATION | DWM_TNP_OPACITY | DWM_TNP_SOURCECLIENTAREAONLY;
+        props.fSourceClientAreaOnly = TRUE;
+        props.fVisible = TRUE;
+
+        for (size_t i=0; i<sessionWindows.size(); ++i) {
+            HTHUMBNAIL hCurrentThumb = NULL;
+            if (isInitialLoad) {
+                if (SUCCEEDED(DwmRegisterThumbnail(hSwitcherWindow, sessionWindows[i].hwnd, &hCurrentThumb))) {
+                    sessionThumbs.push_back(hCurrentThumb);
                 } else {
-                    currentIndex = targetIndex;
+                    hCurrentThumb = sessionThumbs[i];
+                }
+                if (hCurrentThumb) {
+                    props.opacity = (i == sessionIndex) ? 255 : 170;
+                    props.rcDestination = GetThumbRect(cachedLayout, i, sessionWindows.size());
+                    DwmUpdateThumbnailProperties(hCurrentThumb, &props);
                 }
             }
-            break;
-        }
-        case VK_DOWN: {
-            int targetIndex = currentIndex + cols;
-            if (targetIndex < count) {
-                currentIndex = targetIndex;
-            } else {
-                int lastRowStart = ((count - 1) / cols) * cols;
-                if (currentIndex < lastRowStart) {
-                    currentIndex = count - 1;
-                } else {
-                    currentIndex = currentIndex % cols;
-                }
-            }
-            break;
         }
     }
 
-    sessionIndex = (size_t)currentIndex;
-}
-
-void ResetSwitcherSession(DWORD vkCode) {
-    if (currentMode == SwitcherMode::None) return;
-
-    if (vkCode != VK_ESCAPE) {
-        if (sessionIndex < sessionWindows.size()) {
-            HWND target = sessionWindows[sessionIndex].hwnd;
-
-            if (hSwitcherWindow) ShowWindow(hSwitcherWindow, SW_HIDE);
-            if (IsIconic(target)) ShowWindow(target, SW_RESTORE);
-
-            keybd_event(0xFC, 0, 0, 0);
-            keybd_event(0xFC, 0, KEYEVENTF_KEYUP, 0);
-
-            AllowSetForegroundWindow(ASFW_ANY);
-            SetForegroundWindow(target);
-            SetActiveWindow(target);
-        }
-    }
-
-    for (auto t : sessionThumbs) DwmUnregisterThumbnail(t);
-    sessionThumbs.clear();
-
-    for (auto entry : sessionWindows) if (entry.hIcon) DestroyIcon(entry.hIcon);
-    sessionWindows.clear();
-
-    if (hSwitcherWindow) {
-        DestroyWindow(hSwitcherWindow);
-        hSwitcherWindow = NULL;
-    }
-
-    currentMode = SwitcherMode::None;
-    sessionIndex = 0;
-    seenProcessNames.clear();
-}
-
-static void InitializeSwitcher(SwitcherMode mode, HWND anchorWindow) {
-    if (!anchorWindow) return;
-
-    bool isSwap = (currentMode != SwitcherMode::None && currentMode != mode);
-
-    DWORD targetPid;
-    GetWindowThreadProcessId(anchorWindow, &targetPid);
-    if (targetPid == GetCurrentProcessId()) {
-        anchorWindow = GetNextWindow(anchorWindow, GW_HWNDNEXT);
-        if (!anchorWindow) return;
-        GetWindowThreadProcessId(anchorWindow, &targetPid);
-    }
-
-    WindowData wData;
-    seenProcessNames.clear(); 
-    if (mode == SwitcherMode::SameApp) {
-        wData.targetProcessName = GetProcessName(targetPid);
-        EnumWindows(EnumWindowsProc, (LPARAM)&wData);
-    } else {
-        EnumWindows(EnumAllWindowsProc, (LPARAM)&wData);
-    }
-
-    if (wData.windows.size() <= 1 && mode == SwitcherMode::SameApp) {
-        if (isSwap) {
+    void HandleArrowNavigation(DWORD vkCode) {
+        if (sessionWindows.empty()) {
             return;
         }
-        currentMode = SwitcherMode::None;
-        return;
+
+        int count = (int)sessionWindows.size();
+        int cols = cachedLayout.cols;
+
+        int currentIndex = (int)sessionIndex;
+        
+        switch (vkCode) {
+            case VK_LEFT: {
+                currentIndex = (currentIndex - 1 + count) % count;
+                break;
+            }
+            case VK_RIGHT: {
+                currentIndex = (currentIndex + 1) % count;
+                break;
+            }
+            case VK_UP: {
+                if (currentIndex >= cols) {
+                    currentIndex -= cols;
+                } else {
+                    int currentCol = currentIndex % cols;
+                    int lastRowStart = ((count - 1) / cols) * cols;
+                    int targetIndex = lastRowStart + currentCol;
+                    if (targetIndex >= count) {
+                        currentIndex = count - 1;
+                    } else {
+                        currentIndex = targetIndex;
+                    }
+                }
+                break;
+            }
+            case VK_DOWN: {
+                int targetIndex = currentIndex + cols;
+                if (targetIndex < count) {
+                    currentIndex = targetIndex;
+                } else {
+                    int lastRowStart = ((count - 1) / cols) * cols;
+                    if (currentIndex < lastRowStart) {
+                        currentIndex = count - 1;
+                    } else {
+                        currentIndex = currentIndex % cols;
+                    }
+                }
+                break;
+            }
+        }
+
+        sessionIndex = (size_t)currentIndex;
     }
 
-    if (isSwap) {
+    void ResetSwitcherSession(DWORD vkCode) {
+        if (currentMode == SwitcherMode::None) return;
+
+        if (vkCode != VK_ESCAPE) {
+            if (sessionIndex < sessionWindows.size()) {
+                HWND target = sessionWindows[sessionIndex].hwnd;
+
+                if (hSwitcherWindow) ShowWindow(hSwitcherWindow, SW_HIDE);
+                if (IsIconic(target)) ShowWindow(target, SW_RESTORE);
+
+                keybd_event(0xFC, 0, 0, 0);
+                keybd_event(0xFC, 0, KEYEVENTF_KEYUP, 0);
+
+                AllowSetForegroundWindow(ASFW_ANY);
+                SetForegroundWindow(target);
+                SetActiveWindow(target);
+            }
+        }
+
         for (auto t : sessionThumbs) DwmUnregisterThumbnail(t);
         sessionThumbs.clear();
-        
+
         for (auto entry : sessionWindows) if (entry.hIcon) DestroyIcon(entry.hIcon);
         sessionWindows.clear();
-        
+
         if (hSwitcherWindow) {
             DestroyWindow(hSwitcherWindow);
             hSwitcherWindow = NULL;
         }
+
+        currentMode = SwitcherMode::None;
+        sessionIndex = 0;
+        seenProcessNames.clear();
     }
 
-    sessionWindows = wData.windows;
-    currentMode = mode;
+    static void InitializeSwitcher(SwitcherMode mode, HWND anchorWindow) {
+        if (!anchorWindow) return;
 
-    sessionIndex = 0;
-    for (size_t i = 0; i < sessionWindows.size(); ++i) {
-        if (sessionWindows[i].hwnd == anchorWindow) {
-            sessionIndex = (int)i;
-            break;
+        bool isSwap = (currentMode != SwitcherMode::None && currentMode != mode);
+
+        DWORD targetPid;
+        GetWindowThreadProcessId(anchorWindow, &targetPid);
+        if (targetPid == GetCurrentProcessId()) {
+            anchorWindow = GetNextWindow(anchorWindow, GW_HWNDNEXT);
+            if (!anchorWindow) return;
+            GetWindowThreadProcessId(anchorWindow, &targetPid);
         }
-    }
 
-    cachedLayout = CalculateSwitcherLayout((int)sessionWindows.size(), currentMode);
-    CreateSwitcherUI();
-    UpdateThumbnailGallery();
-    
-    ShowWindow(hSwitcherWindow, SW_SHOW);
-    InvalidateRect(hSwitcherWindow, NULL, TRUE);
-}
+        WindowData wData;
+        seenProcessNames.clear(); 
+        if (mode == SwitcherMode::SameApp) {
+            wData.targetProcessName = Common::GetProcessName(targetPid);
+            EnumWindows(EnumWindowsProc, (LPARAM)&wData);
+        } else {
+            EnumWindows(EnumAllWindowsProc, (LPARAM)&wData);
+        }
 
-void AppCycleSwitcher(DWORD vkCode, SwitcherMode requestedMode) {
-    if (currentMode != SwitcherMode::None && requestedMode != SwitcherMode::None && requestedMode != currentMode) {
-        if (sessionWindows.empty() || sessionIndex >= sessionWindows.size()) {
-            InitializeSwitcher(requestedMode, GetForegroundWindow());
+        if (wData.windows.size() <= 1 && mode == SwitcherMode::SameApp) {
+            if (isSwap) {
+                return;
+            }
+            currentMode = SwitcherMode::None;
             return;
         }
 
-        if (currentMode == SwitcherMode::AllApps) {
-            lastAllAppsIndex = sessionIndex;
+        if (isSwap) {
+            for (auto t : sessionThumbs) DwmUnregisterThumbnail(t);
+            sessionThumbs.clear();
+            
+            for (auto entry : sessionWindows) if (entry.hIcon) DestroyIcon(entry.hIcon);
+            sessionWindows.clear();
+            
+            if (hSwitcherWindow) {
+                DestroyWindow(hSwitcherWindow);
+                hSwitcherWindow = NULL;
+            }
         }
 
-        HWND anchor = sessionWindows[sessionIndex].hwnd;
-        if (!IsWindow(anchor)) {
-            anchor = GetForegroundWindow();
-        }
-        
-        InitializeSwitcher(requestedMode, anchor);
-        
-        if (currentMode != requestedMode) {
-            return; 
-        }
+        sessionWindows = wData.windows;
+        currentMode = mode;
 
-        if (requestedMode == SwitcherMode::AllApps) {
-            sessionIndex = lastAllAppsIndex;
+        sessionIndex = 0;
+        for (size_t i = 0; i < sessionWindows.size(); ++i) {
+            if (sessionWindows[i].hwnd == anchorWindow) {
+                sessionIndex = (int)i;
+                break;
+            }
         }
 
-        sessionIndex = (sessionIndex + 1) % sessionWindows.size();
-
+        cachedLayout = CalculateSwitcherLayout((int)sessionWindows.size(), currentMode);
+        CreateSwitcherUI();
         UpdateThumbnailGallery();
-        InvalidateRect(hSwitcherWindow, NULL, FALSE);
-        return;
-    }
-
-    if (currentMode == SwitcherMode::None) {
-        InitializeSwitcher(requestedMode, GetForegroundWindow());
         
-        if (!sessionWindows.empty()) {
-            sessionIndex = (sessionIndex + 1) % sessionWindows.size();
-        }
-        return;
+        ShowWindow(hSwitcherWindow, SW_SHOW);
+        InvalidateRect(hSwitcherWindow, NULL, TRUE);
     }
 
-    if (currentMode != SwitcherMode::None && !sessionWindows.empty()) {
-        bool isAllAppMode  = (currentMode == SwitcherMode::AllApps && vkCode == Config::currentConfiguration.allAppsSwitcherKey);
-        bool isSameAppMode = (currentMode == SwitcherMode::SameApp && vkCode == Config::currentConfiguration.sameAppsSwitcherKey);
+    void AppCycleSwitcher(DWORD vkCode, SwitcherMode requestedMode) {
+        if (currentMode != SwitcherMode::None && requestedMode != SwitcherMode::None && requestedMode != currentMode) {
+            if (sessionWindows.empty() || sessionIndex >= sessionWindows.size()) {
+                InitializeSwitcher(requestedMode, GetForegroundWindow());
+                return;
+            }
 
-        if (isAllAppMode || isSameAppMode) {
+            if (currentMode == SwitcherMode::AllApps) {
+                lastAllAppsIndex = sessionIndex;
+            }
+
+            HWND anchor = sessionWindows[sessionIndex].hwnd;
+            if (!IsWindow(anchor)) {
+                anchor = GetForegroundWindow();
+            }
+            
+            InitializeSwitcher(requestedMode, anchor);
+            
+            if (currentMode != requestedMode) {
+                return; 
+            }
+
+            if (requestedMode == SwitcherMode::AllApps) {
+                sessionIndex = lastAllAppsIndex;
+            }
+
             sessionIndex = (sessionIndex + 1) % sessionWindows.size();
+
+            UpdateThumbnailGallery();
+            InvalidateRect(hSwitcherWindow, NULL, FALSE);
+            return;
         }
-        else if (vkCode == VK_LEFT || vkCode == VK_RIGHT || vkCode == VK_UP || vkCode == VK_DOWN) {
-            HandleArrowNavigation(vkCode);
+
+        if (currentMode == SwitcherMode::None) {
+            InitializeSwitcher(requestedMode, GetForegroundWindow());
+            
+            if (!sessionWindows.empty()) {
+                sessionIndex = (sessionIndex + 1) % sessionWindows.size();
+            }
+            return;
         }
-        UpdateThumbnailGallery();
-        InvalidateRect(hSwitcherWindow, NULL, FALSE);
+
+        if (currentMode != SwitcherMode::None && !sessionWindows.empty()) {
+            bool isAllAppMode  = (currentMode == SwitcherMode::AllApps && vkCode == Config::currentConfiguration.allAppsSwitcherKey);
+            bool isSameAppMode = (currentMode == SwitcherMode::SameApp && vkCode == Config::currentConfiguration.sameAppsSwitcherKey);
+
+            if (isAllAppMode || isSameAppMode) {
+                sessionIndex = (sessionIndex + 1) % sessionWindows.size();
+            }
+            else if (vkCode == VK_LEFT || vkCode == VK_RIGHT || vkCode == VK_UP || vkCode == VK_DOWN) {
+                HandleArrowNavigation(vkCode);
+            }
+            UpdateThumbnailGallery();
+            InvalidateRect(hSwitcherWindow, NULL, FALSE);
+        }
     }
-}
+
+} // namespace Switcher

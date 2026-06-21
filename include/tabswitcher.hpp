@@ -1,3 +1,5 @@
 #pragma once
 
-bool SwitchTabs(DWORD vkCode);
+namespace TabSwitcher {
+    bool SwitchTabs(DWORD vkCode);
+} // namespace TabSwitcher

@@ -1,3 +1,5 @@
 #pragma once
 
-void InitiateQuitSequence();
+namespace QuitSequence {
+    void InitiateQuitSequence();
+} // namespace Quit

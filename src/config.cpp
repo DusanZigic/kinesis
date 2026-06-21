@@ -21,7 +21,7 @@ namespace Config {
     Configuration currentConfiguration;
 
     static unsigned int StringToVK(const std::string& s) {
-        std::string upper = ToUpper(s);
+        std::string upper = Common::ToUpper(s);
         if (upper == "ALT")   return VK_MENU;
         if (upper == "CTRL")  return VK_CONTROL;
         if (upper == "SHIFT") return VK_SHIFT;
@@ -64,7 +64,7 @@ namespace Config {
     }
 
     static std::string GetConfigPath() {
-        std::string baseAppPath = GetKnownFolderPath(FOLDERID_LocalAppData);
+        std::string baseAppPath = Common::GetKnownFolderPath(FOLDERID_LocalAppData);
         if (!baseAppPath.empty()) {
             std::string kinesisPath = baseAppPath + "\\Kinesis";
             std::string configPath = kinesisPath + "\\Config";

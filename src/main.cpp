@@ -10,26 +10,28 @@
 
 LRESULT CALLBACK GhostWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (SystemState::uTaskbarRestartMsg != 0 && msg == SystemState::uTaskbarRestartMsg) {
-        HandleTrayInit(hwnd);
+        Tray::HandleTrayInit(hwnd);
         return 0;
     }
 
     switch (msg) {
-        case WM_CREATE:
+        case WM_CREATE: {
             ChangeWindowMessageFilterEx(hwnd, SystemState::uTaskbarRestartMsg, 1, NULL);
-            ChangeWindowMessageFilterEx(hwnd, WM_TRAYICON, 1, NULL);
-            
-            HandleTrayInit(hwnd);
+            ChangeWindowMessageFilterEx(hwnd, Tray::WM_TRAYICON, 1, NULL);
+            Tray::HandleTrayInit(hwnd);
             return 0;
-        case WM_TRAYICON:
+        }
+        case Tray::WM_TRAYICON: {
             if (lp == WM_RBUTTONUP) {
-                ShowTrayMenu(hwnd);
+                Tray::ShowTrayMenu(hwnd);
             }
             break;
-        case WM_DESTROY:
-            HandleTrayCleanup(hwnd);
+        }
+        case WM_DESTROY: {
+            Tray::HandleTrayCleanup(hwnd);
             PostQuitMessage(0);
             return 0;
+        }
     }
     return DefWindowProc(hwnd, msg, wp, lp);
 }
@@ -61,53 +63,53 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
                     return 1;
                 }
                 if (pKeyBoard->vkCode == 'Q') {
-                    InitiateQuitSequence();
+                    QuitSequence::InitiateQuitSequence();
                     return 1;
                 }
             }
-            if (IsSwitcherActive()) {
+            if (TaskSwitcher::IsSwitcherActive()) {
                 if (pKeyBoard->vkCode == VK_LEFT || pKeyBoard->vkCode == VK_RIGHT || 
                     pKeyBoard->vkCode == VK_UP   || pKeyBoard->vkCode == VK_DOWN) {
-                    AppCycleSwitcher(pKeyBoard->vkCode, SwitcherMode::None);
+                    TaskSwitcher::AppCycleSwitcher(pKeyBoard->vkCode, TaskSwitcher::SwitcherMode::None);
                     return 1;
                 }
                 if (pKeyBoard->vkCode == Config::currentConfiguration.allAppsSwitcherKey) {
-                    AppCycleSwitcher(Config::currentConfiguration.allAppsSwitcherKey, SwitcherMode::AllApps);
+                    TaskSwitcher::AppCycleSwitcher(Config::currentConfiguration.allAppsSwitcherKey, TaskSwitcher::SwitcherMode::AllApps);
                     return 1;
                 }
                 if (pKeyBoard->vkCode == Config::currentConfiguration.sameAppsSwitcherKey) {
-                    AppCycleSwitcher(Config::currentConfiguration.sameAppsSwitcherKey, SwitcherMode::SameApp);
+                    TaskSwitcher::AppCycleSwitcher(Config::currentConfiguration.sameAppsSwitcherKey, TaskSwitcher::SwitcherMode::SameApp);
                     return 1;
                 }
                 if (pKeyBoard->vkCode == VK_RETURN || pKeyBoard->vkCode == VK_ESCAPE) {
-                    ResetSwitcherSession(pKeyBoard->vkCode);
+                    TaskSwitcher::ResetSwitcherSession(pKeyBoard->vkCode);
                     activeSwitcherMod = 0;
                     return 1;
                 }
             }
-            if (!IsSwitcherActive() && Config::currentConfiguration.enableTaskSwitcher) {
+            if (!TaskSwitcher::IsSwitcherActive() && Config::currentConfiguration.enableTaskSwitcher) {
                 bool allAppsSwitcherModHeld = (GetAsyncKeyState(Config::currentConfiguration.allAppsSwitcherMod) & 0x8000);
                 if (allAppsSwitcherModHeld && pKeyBoard->vkCode == Config::currentConfiguration.allAppsSwitcherKey) {
                     activeSwitcherMod = Config::currentConfiguration.allAppsSwitcherMod;
-                    AppCycleSwitcher(Config::currentConfiguration.allAppsSwitcherMod, SwitcherMode::AllApps);
+                    TaskSwitcher::AppCycleSwitcher(Config::currentConfiguration.allAppsSwitcherMod, TaskSwitcher::SwitcherMode::AllApps);
                     return 1;
                 }
 
                 bool sameAppsSwitcherModHeld = (GetAsyncKeyState(Config::currentConfiguration.sameAppsSwitcherMod) & 0x8000);
                 if (sameAppsSwitcherModHeld && pKeyBoard->vkCode == Config::currentConfiguration.sameAppsSwitcherKey) {
                     activeSwitcherMod = Config::currentConfiguration.sameAppsSwitcherMod;
-                    AppCycleSwitcher(Config::currentConfiguration.sameAppsSwitcherMod, SwitcherMode::SameApp);
+                    TaskSwitcher::AppCycleSwitcher(Config::currentConfiguration.sameAppsSwitcherMod, TaskSwitcher::SwitcherMode::SameApp);
                     return 1;
                 }
             }
             if (Config::currentConfiguration.enableTabSwitcher) {
                 if (wParam == WM_SYSKEYDOWN && pKeyBoard->vkCode >= '1' && pKeyBoard->vkCode <= '9') {
-                    if (SwitchTabs(pKeyBoard->vkCode)) return 1;
+                    if (TabSwitcher::SwitchTabs(pKeyBoard->vkCode)) return 1;
                 }
             }
 
         }
-        if (isUp && IsSwitcherActive()) {
+        if (isUp && TaskSwitcher::IsSwitcherActive()) {
             unsigned int releasedKey = pKeyBoard->vkCode;
 
             if (releasedKey == VK_LMENU    || releasedKey == VK_RMENU)    releasedKey = VK_MENU;
@@ -115,7 +117,7 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
             if (releasedKey == VK_LSHIFT   || releasedKey == VK_RSHIFT)   releasedKey = VK_SHIFT;
 
             if (releasedKey == activeSwitcherMod) {
-                ResetSwitcherSession(activeSwitcherMod);
+                TaskSwitcher::ResetSwitcherSession(activeSwitcherMod);
                 activeSwitcherMod = 0;
                 return 0;
             }
