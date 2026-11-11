@@ -3,6 +3,7 @@
 #include <string>
 #include <set>
 #include <map>
+#include <mutex>
 
 namespace Config {
     struct Configuration {
@@ -24,6 +25,7 @@ namespace Config {
     };
     extern const Configuration defaultConfiguration;
     extern Configuration currentConfiguration;
+    extern std::mutex configMutex;
 
     void DefaultConfig();
     void OpenConfig();

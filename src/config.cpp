@@ -27,6 +27,7 @@ namespace Config {
         /*.sameAppsSwitcherKey =*/ VK_OEM_3
     };
     Configuration currentConfiguration;
+    std::mutex configMutex;
 
     static unsigned int StringToVK(const std::string& s) {
         std::string upper = Common::ToUpper(s);
@@ -134,6 +135,7 @@ namespace Config {
     }
 
     void DefaultConfig() {
+        std::lock_guard<std::mutex> lock(configMutex);
         currentConfiguration = defaultConfiguration;
     }
 
@@ -146,24 +148,24 @@ namespace Config {
         return s;
     }
 
-    static void AssignSetting(const std::string& key, const std::string& value) {
+    static void AssignSetting(const std::string& key, const std::string& value, Configuration& configuration) {
         std::string cleanValue = CleanValue(value);
         
-        if      (key == "enableTabSwitcher")         currentConfiguration.enableTabSwitcher         = (cleanValue == "true");
-        else if (key == "enableVSCodeLauncher")      currentConfiguration.enableVSCodeLauncher      = (cleanValue == "true");
-        else if (key == "enableWSLTerminalLauncher") currentConfiguration.enableWSLTerminalLauncher = (cleanValue == "true");
-        else if (key == "enableTaskSwitcher")        currentConfiguration.enableTaskSwitcher        = (cleanValue == "true");
+        if      (key == "enableTabSwitcher")         configuration.enableTabSwitcher         = (cleanValue == "true");
+        else if (key == "enableVSCodeLauncher")      configuration.enableVSCodeLauncher      = (cleanValue == "true");
+        else if (key == "enableWSLTerminalLauncher") configuration.enableWSLTerminalLauncher = (cleanValue == "true");
+        else if (key == "enableTaskSwitcher")        configuration.enableTaskSwitcher        = (cleanValue == "true");
         
-        else if (key == "VSCodeLauncherKey")      currentConfiguration.VSCodeLauncherKey      = StringToVK(cleanValue);
-        else if (key == "WSLTerminalLauncherKey") currentConfiguration.WSLTerminalLauncherKey = StringToVK(cleanValue);
-        else if (key == "allAppsSwitcherMod")     currentConfiguration.allAppsSwitcherMod     = StringToVK(cleanValue);
-        else if (key == "allAppsSwitcherKey")     currentConfiguration.allAppsSwitcherKey     = StringToVK(cleanValue);
-        else if (key == "sameAppsSwitcherMod")    currentConfiguration.sameAppsSwitcherMod    = StringToVK(cleanValue);
-        else if (key == "sameAppsSwitcherKey")    currentConfiguration.sameAppsSwitcherKey    = StringToVK(cleanValue);
+        else if (key == "VSCodeLauncherKey")      configuration.VSCodeLauncherKey      = StringToVK(cleanValue);
+        else if (key == "WSLTerminalLauncherKey") configuration.WSLTerminalLauncherKey = StringToVK(cleanValue);
+        else if (key == "allAppsSwitcherMod")     configuration.allAppsSwitcherMod     = StringToVK(cleanValue);
+        else if (key == "allAppsSwitcherKey")     configuration.allAppsSwitcherKey     = StringToVK(cleanValue);
+        else if (key == "sameAppsSwitcherMod")    configuration.sameAppsSwitcherMod    = StringToVK(cleanValue);
+        else if (key == "sameAppsSwitcherKey")    configuration.sameAppsSwitcherKey    = StringToVK(cleanValue);
     }
 
-    static void ParseTabbedApps(const std::string& val) {
-        currentConfiguration.tabbedApps.clear();
+    static void ParseTabbedApps(const std::string& val, Configuration& configuration) {
+        configuration.tabbedApps.clear();
         size_t start = val.find("[");
         size_t end = val.find("]");
         if (start != std::string::npos && end != std::string::npos) {
@@ -173,7 +175,7 @@ namespace Config {
             while (std::getline(ss, item, ',')) {
                 std::string cleaned = CleanValue(item);
                 if (!cleaned.empty()) {
-                    currentConfiguration.tabbedApps.insert(cleaned);
+                    configuration.tabbedApps.insert(cleaned);
                 }
             }
         }
@@ -181,34 +183,34 @@ namespace Config {
 
     void LoadConfig() {
         std::string configPath = GetConfigPath();
-        std::ifstream file(configPath);
+        Configuration configuration = defaultConfiguration;
 
+        std::ifstream file(configPath);
         if (!file.is_open()) {
             SaveConfig(configPath, defaultConfiguration);
-            currentConfiguration = defaultConfiguration;
-            return;
-        }
+        } else {
+            std::string line;
+            while (std::getline(file, line)) {
+                line.erase(0, line.find_first_not_of(" \t"));            
+                if (line.empty() || line.find("//") == 0 || line.find("#") == 0) continue;
 
-        std::string line;
-        while (std::getline(file, line)) {
-            line.erase(0, line.find_first_not_of(" \t"));            
-            if (line.empty() || line.find("//") == 0 || line.find("#") == 0) continue;
+                size_t delim = line.find(":");
+                if (delim == std::string::npos) continue;
 
-            size_t delim = line.find(":");
-            if (delim == std::string::npos) continue;
+                std::string key = CleanValue(line.substr(0, delim));
+                std::string val = line.substr(delim + 1);
 
-            std::string key = CleanValue(line.substr(0, delim));
-            std::string val = line.substr(delim + 1);
+                if (key == "tabbedApps") {
+                    ParseTabbedApps(val, configuration);
+                } else {
+                    AssignSetting(key, val, configuration);
+                }
 
-            if (key == "tabbedApps") {
-                ParseTabbedApps(val);
-            } else {
-                AssignSetting(key, val);
             }
-
         }
-        
-        currentConfiguration.tabbedAppsNames = defaultConfiguration.tabbedAppsNames;
+
+        std::lock_guard<std::mutex> lock(configMutex);
+        currentConfiguration = configuration;        
 
         return;
     }
@@ -216,8 +218,9 @@ namespace Config {
     void SetUIConfig(Configuration& configuration) {
         configuration = currentConfiguration;
     }
-
+    
     void SetConfgiFromUI(const Configuration& configuration) {
+        std::lock_guard<std::mutex> lock(configMutex);
         currentConfiguration = configuration;
     }
 }

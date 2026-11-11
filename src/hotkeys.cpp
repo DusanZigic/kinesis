@@ -16,6 +16,8 @@ namespace Hotkeys {
 
     static LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
         if (nCode == HC_ACTION) {
+            std::lock_guard<std::mutex> lock(Config::configMutex);
+
             KBDLLHOOKSTRUCT *pKeyBoard = (KBDLLHOOKSTRUCT*)lParam;
 
             bool isDown = (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN);
