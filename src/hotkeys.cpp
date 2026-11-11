@@ -14,6 +14,19 @@ namespace Hotkeys {
     static DWORD       hookThreadId = 0;
     static std::thread hookThread;
 
+    static void SendMaskKey() {
+        INPUT inputs[2] {};
+
+        inputs[0].type       = INPUT_KEYBOARD;
+        inputs[0].ki.wVk     = VK_NONAME;
+
+        inputs[1].type       = INPUT_KEYBOARD;
+        inputs[1].ki.wVk     = VK_NONAME;
+        inputs[1].ki.dwFlags = KEYEVENTF_KEYUP;
+
+        SendInput(2, inputs, sizeof(INPUT));
+    }
+
     static LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
         if (nCode == HC_ACTION) {
 
@@ -73,13 +86,15 @@ namespace Hotkeys {
                     if (allAppsSwitcherModHeld && pKeyBoard->vkCode == currentConfiguration->allAppsSwitcherKey) {
                         activeSwitcherMod = currentConfiguration->allAppsSwitcherMod;
                         PostMessage(hTarget, Hotkeys::WM_KINESIS_SWITCHER_CYCLE, pKeyBoard->vkCode, static_cast<LPARAM>(TaskSwitcher::SwitcherMode::AllApps));
+                        SendMaskKey();
                         return 1;
                     }
 
                     bool sameAppsSwitcherModHeld = (GetAsyncKeyState(currentConfiguration->sameAppsSwitcherMod) & 0x8000);
                     if (sameAppsSwitcherModHeld && pKeyBoard->vkCode == currentConfiguration->sameAppsSwitcherKey) {
-                        activeSwitcherMod = currentConfiguration->sameAppsSwitcherMod;
                         PostMessage(hTarget, Hotkeys::WM_KINESIS_SWITCHER_CYCLE, pKeyBoard->vkCode, static_cast<LPARAM>(TaskSwitcher::SwitcherMode::SameApp));
+                        activeSwitcherMod = currentConfiguration->sameAppsSwitcherMod;
+                        SendMaskKey();
                         return 1;
                     }
                 }
