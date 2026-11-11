@@ -122,6 +122,8 @@ namespace Hotkeys {
     }
 
     static void HookThreadMain(std::promise<DWORD> started) {
+        SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
+        
         HHOOK hook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, GetModuleHandle(NULL), 0);
         DWORD error = (hook == NULL) ? GetLastError() : 0;
 
