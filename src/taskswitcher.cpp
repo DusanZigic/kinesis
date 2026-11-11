@@ -67,10 +67,6 @@ namespace TaskSwitcher {
     static const double MAX_SWITCHER_RELATIVE_WIDTH = 0.85;
     static const float ICON_MARGIN_RATIO = 0.12f;
 
-    bool IsSwitcherActive() {
-        return currentMode != SwitcherMode::None;
-    }
-
     SwitcherLayout CalculateSwitcherLayout(size_t count, SwitcherMode mode) {
         SwitcherLayout layout;
 
@@ -665,8 +661,10 @@ namespace TaskSwitcher {
         }
 
         if (currentMode != SwitcherMode::None && !sessionWindows.empty()) {
-            bool isAllAppMode  = (currentMode == SwitcherMode::AllApps && vkCode == Config::currentConfiguration.allAppsSwitcherKey);
-            bool isSameAppMode = (currentMode == SwitcherMode::SameApp && vkCode == Config::currentConfiguration.sameAppsSwitcherKey);
+            auto currentConfiguration = Config::GetConfig();
+
+            bool isAllAppMode  = (currentMode == SwitcherMode::AllApps && vkCode == currentConfiguration->allAppsSwitcherKey);
+            bool isSameAppMode = (currentMode == SwitcherMode::SameApp && vkCode == currentConfiguration->sameAppsSwitcherKey);
 
             if (isAllAppMode || isSameAppMode) {
                 sessionIndex = (sessionIndex + 1) % sessionWindows.size();

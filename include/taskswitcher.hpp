@@ -9,7 +9,6 @@ namespace TaskSwitcher {
         AllApps
     };
 
-    bool IsSwitcherActive();
     void ResetSwitcherSession(DWORD vkCode);
     void AppCycleSwitcher(DWORD vkCode, SwitcherMode mode = SwitcherMode::None);
 

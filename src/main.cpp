@@ -4,15 +4,25 @@
 
 #include <string>
 
-#include "common.hpp"
+#include "hotkeys.hpp"
 #include "trayicon.hpp"
-#include "tabswitcher.hpp"
 #include "taskswitcher.hpp"
 #include "launchers.hpp"
 #include "quitsequence.hpp"
 #include "config.hpp"
 #include "configui.hpp"
 #include "systemstate.hpp"
+
+static HWND hGhostWnd = NULL;
+
+static BOOL WINAPI ConsoleCtrlHandler(DWORD ctrlType) {
+    if (ctrlType == CTRL_C_EVENT || ctrlType == CTRL_BREAK_EVENT) {
+        PostMessage(hGhostWnd, WM_CLOSE, 0, 0);
+        return TRUE;
+    }
+    return FALSE;
+}
+
 
 LRESULT CALLBACK GhostWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (SystemState::uTaskbarRestartMsg != 0 && msg == SystemState::uTaskbarRestartMsg) {
@@ -33,6 +43,26 @@ LRESULT CALLBACK GhostWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             }
             break;
         }
+        case Hotkeys::WM_KINESIS_SHOW_LAUNCHER: {
+            Launcher::Show(static_cast<Launcher::Mode>(wp));
+            return 0;
+        }
+        case Hotkeys::WM_KINESIS_OPEN_CONFIG: {
+            ConfigUI::OpenConfigUI();
+            return 0;
+        }
+        case Hotkeys::WM_KINESIS_INITIATE_QUIT_SEQUENCE: {
+            QuitSequence::InitiateQuitSequence();
+            return 0;
+        }
+        case Hotkeys::WM_KINESIS_SWITCHER_CYCLE: {
+            TaskSwitcher::AppCycleSwitcher(static_cast<DWORD>(wp), static_cast<TaskSwitcher::SwitcherMode>(lp));
+            return 0;
+        }
+        case Hotkeys::WM_KINESIS_SWITCHER_END: {
+            TaskSwitcher::ResetSwitcherSession(static_cast<DWORD>(wp));
+            return 0;
+        }
         case WM_DESTROY: {
             Tray::HandleTrayCleanup(hwnd);
             PostQuitMessage(0);
@@ -40,96 +70,6 @@ LRESULT CALLBACK GhostWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         }
     }
     return DefWindowProc(hwnd, msg, wp, lp);
-}
-
-LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
-    if (nCode == HC_ACTION) {
-        KBDLLHOOKSTRUCT *pKeyBoard = (KBDLLHOOKSTRUCT*)lParam;
-
-        bool isDown = (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN);
-        bool isUp   = (wParam == WM_KEYUP   || wParam == WM_SYSKEYUP);
-        
-        bool ctrlHeld  = (GetAsyncKeyState(VK_CONTROL) & 0x8000);
-        bool altHeld   = (GetAsyncKeyState(VK_MENU) & 0x8000);
-
-        static unsigned int activeSwitcherMod = 0;
-
-        if (isDown) {
-            if (ctrlHeld && altHeld) {
-                if (Config::currentConfiguration.enableVSCodeLauncher && pKeyBoard->vkCode == Config::currentConfiguration.VSCodeLauncherKey) {
-                    Launcher::Show(Launcher::Mode::VSCode);
-                    return 1;
-                }
-                if (Config::currentConfiguration.enableWSLTerminalLauncher && pKeyBoard->vkCode == Config::currentConfiguration.WSLTerminalLauncherKey) {
-                    Launcher::Show(Launcher::Mode::WSL);
-                    return 1;
-                }
-                if (pKeyBoard->vkCode == 'C') {
-                    ConfigUI::OpenConfigUI();
-                    return 1;
-                }
-                if (pKeyBoard->vkCode == 'Q') {
-                    QuitSequence::InitiateQuitSequence();
-                    return 1;
-                }
-            }
-            if (TaskSwitcher::IsSwitcherActive()) {
-                if (pKeyBoard->vkCode == VK_LEFT || pKeyBoard->vkCode == VK_RIGHT || 
-                    pKeyBoard->vkCode == VK_UP   || pKeyBoard->vkCode == VK_DOWN) {
-                    TaskSwitcher::AppCycleSwitcher(pKeyBoard->vkCode, TaskSwitcher::SwitcherMode::None);
-                    return 1;
-                }
-                if (pKeyBoard->vkCode == Config::currentConfiguration.allAppsSwitcherKey) {
-                    TaskSwitcher::AppCycleSwitcher(Config::currentConfiguration.allAppsSwitcherKey, TaskSwitcher::SwitcherMode::AllApps);
-                    return 1;
-                }
-                if (pKeyBoard->vkCode == Config::currentConfiguration.sameAppsSwitcherKey) {
-                    TaskSwitcher::AppCycleSwitcher(Config::currentConfiguration.sameAppsSwitcherKey, TaskSwitcher::SwitcherMode::SameApp);
-                    return 1;
-                }
-                if (pKeyBoard->vkCode == VK_RETURN || pKeyBoard->vkCode == VK_ESCAPE) {
-                    TaskSwitcher::ResetSwitcherSession(pKeyBoard->vkCode);
-                    activeSwitcherMod = 0;
-                    return 1;
-                }
-            }
-            if (!TaskSwitcher::IsSwitcherActive() && Config::currentConfiguration.enableTaskSwitcher) {
-                bool allAppsSwitcherModHeld = (GetAsyncKeyState(Config::currentConfiguration.allAppsSwitcherMod) & 0x8000);
-                if (allAppsSwitcherModHeld && pKeyBoard->vkCode == Config::currentConfiguration.allAppsSwitcherKey) {
-                    activeSwitcherMod = Config::currentConfiguration.allAppsSwitcherMod;
-                    TaskSwitcher::AppCycleSwitcher(Config::currentConfiguration.allAppsSwitcherMod, TaskSwitcher::SwitcherMode::AllApps);
-                    return 1;
-                }
-
-                bool sameAppsSwitcherModHeld = (GetAsyncKeyState(Config::currentConfiguration.sameAppsSwitcherMod) & 0x8000);
-                if (sameAppsSwitcherModHeld && pKeyBoard->vkCode == Config::currentConfiguration.sameAppsSwitcherKey) {
-                    activeSwitcherMod = Config::currentConfiguration.sameAppsSwitcherMod;
-                    TaskSwitcher::AppCycleSwitcher(Config::currentConfiguration.sameAppsSwitcherMod, TaskSwitcher::SwitcherMode::SameApp);
-                    return 1;
-                }
-            }
-            if (Config::currentConfiguration.enableTabSwitcher) {
-                if (wParam == WM_SYSKEYDOWN && pKeyBoard->vkCode >= '1' && pKeyBoard->vkCode <= '9') {
-                    if (TabSwitcher::SwitchTabs(pKeyBoard->vkCode)) return 1;
-                }
-            }
-
-        }
-        if (isUp && TaskSwitcher::IsSwitcherActive()) {
-            unsigned int releasedKey = pKeyBoard->vkCode;
-
-            if (releasedKey == VK_LMENU    || releasedKey == VK_RMENU)    releasedKey = VK_MENU;
-            if (releasedKey == VK_LCONTROL || releasedKey == VK_RCONTROL) releasedKey = VK_CONTROL;
-            if (releasedKey == VK_LSHIFT   || releasedKey == VK_RSHIFT)   releasedKey = VK_SHIFT;
-
-            if (releasedKey == activeSwitcherMod) {
-                TaskSwitcher::ResetSwitcherSession(activeSwitcherMod);
-                activeSwitcherMod = 0;
-                return 0;
-            }
-        }
-    }
-    return CallNextHookEx(NULL, nCode, wParam, lParam);
 }
 
 int main() {
@@ -144,18 +84,27 @@ int main() {
         return 0;
     }
 
+    Gdiplus::GdiplusStartupInput gdiplusStartupInput;
+    ULONG_PTR gdiplusToken;
+    Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
+
+    Config::LoadConfig();    
+    
+    Launcher::Initialize();
+
     WNDCLASSA wc {};
     wc.lpfnWndProc = GhostWndProc;
     wc.hInstance = GetModuleHandle(NULL);
     wc.lpszClassName = "KinesisGhostClass";
     RegisterClassA(&wc);
 
-    HWND hGhostWnd = CreateWindowA(wc.lpszClassName, "KinesisGhost", 0, 0, 0, 0, 0, NULL, NULL, GetModuleHandle(NULL), NULL);
-    if (hGhostWnd == NULL) return 0;
+    hGhostWnd = CreateWindowA(wc.lpszClassName, "KinesisGhost", 0, 0, 0, 0, 0, NULL, NULL, GetModuleHandle(NULL), NULL);
+    if (hGhostWnd == NULL) {
+        return 0;
+    }
 
-    HHOOK hhkLowLevelKybd = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, GetModuleHandle(NULL), 0);
-    if (hhkLowLevelKybd == NULL) {
-        DWORD errorCode = GetLastError();
+    DWORD errorCode;
+    if (!Hotkeys::Start(hGhostWnd, errorCode)) {
         if (errorCode == ERROR_ACCESS_DENIED) {
             std::wstring errorMsg = L"Access Denied. Please try running as Administrator.";
             MessageBoxW(NULL, errorMsg.c_str(), L"Kinesis - Permission Error", MB_OK | MB_ICONSTOP | MB_TOPMOST);
@@ -168,19 +117,16 @@ int main() {
         return 1;
     }
 
-    Gdiplus::GdiplusStartupInput gdiplusStartupInput;
-    ULONG_PTR gdiplusToken;
-    Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
-    Config::LoadConfig();    
-    Launcher::Initialize();
+    SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE);
     
     MSG msg;
-    while (GetMessage(&msg, NULL, 0, 0)) {
+    while (GetMessage(&msg, NULL, 0, 0) > 0) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
 
-    UnhookWindowsHookEx(hhkLowLevelKybd);
+    Hotkeys::Stop();
+
     Launcher::ReleaseResources();
     Gdiplus::GdiplusShutdown(gdiplusToken);
     SystemState::CleanUp();

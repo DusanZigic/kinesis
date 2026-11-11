@@ -5,15 +5,14 @@
 #include <string>
 
 #include "common.hpp"
-#include "config.hpp"
 
 namespace TabSwitcher {
-    bool SwitchTabs(DWORD vkCode) {
+    bool SwitchTabs(DWORD vkCode, const std::set<std::string>& tabbedApps) {
         HWND activeWindow = GetForegroundWindow();
         DWORD processId;
         GetWindowThreadProcessId(activeWindow, &processId);
         std::string windowProcessName = Common::GetProcessName(processId);
-        if (Config::currentConfiguration.tabbedApps.count(windowProcessName)) {
+        if (tabbedApps.count(windowProcessName)) {
             INPUT inputs[8] {};
             // logically release ALT
             inputs[0].type       = INPUT_KEYBOARD;
