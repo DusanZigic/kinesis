@@ -13,6 +13,17 @@
 #include "configui.hpp"
 #include "systemstate.hpp"
 
+static HWND hGhostWnd = NULL;
+
+static BOOL WINAPI ConsoleCtrlHandler(DWORD ctrlType) {
+    if (ctrlType == CTRL_C_EVENT || ctrlType == CTRL_BREAK_EVENT) {
+        PostMessage(hGhostWnd, WM_CLOSE, 0, 0);
+        return TRUE;
+    }
+    return FALSE;
+}
+
+
 LRESULT CALLBACK GhostWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (SystemState::uTaskbarRestartMsg != 0 && msg == SystemState::uTaskbarRestartMsg) {
         Tray::HandleTrayInit(hwnd);
@@ -87,7 +98,7 @@ int main() {
     wc.lpszClassName = "KinesisGhostClass";
     RegisterClassA(&wc);
 
-    HWND hGhostWnd = CreateWindowA(wc.lpszClassName, "KinesisGhost", 0, 0, 0, 0, 0, NULL, NULL, GetModuleHandle(NULL), NULL);
+    hGhostWnd = CreateWindowA(wc.lpszClassName, "KinesisGhost", 0, 0, 0, 0, 0, NULL, NULL, GetModuleHandle(NULL), NULL);
     if (hGhostWnd == NULL) {
         return 0;
     }
@@ -105,6 +116,8 @@ int main() {
         }
         return 1;
     }
+
+    SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE);
     
     MSG msg;
     while (GetMessage(&msg, NULL, 0, 0) > 0) {
