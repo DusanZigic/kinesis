@@ -67,10 +67,6 @@ namespace TaskSwitcher {
     static const double MAX_SWITCHER_RELATIVE_WIDTH = 0.85;
     static const float ICON_MARGIN_RATIO = 0.12f;
 
-    bool IsSwitcherActive() {
-        return currentMode != SwitcherMode::None;
-    }
-
     SwitcherLayout CalculateSwitcherLayout(size_t count, SwitcherMode mode) {
         SwitcherLayout layout;
 
