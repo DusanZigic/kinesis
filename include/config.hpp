@@ -3,7 +3,7 @@
 #include <string>
 #include <set>
 #include <map>
-#include <mutex>
+#include <memory>
 
 namespace Config {
     struct Configuration {
@@ -24,13 +24,12 @@ namespace Config {
         unsigned int sameAppsSwitcherKey;
     };
     extern const Configuration defaultConfiguration;
-    extern Configuration currentConfiguration;
-    extern std::mutex configMutex;
-
+    
     void DefaultConfig();
     void OpenConfig();
     void LoadConfig();
     void SaveConfig();
     void SetUIConfig(Configuration& configuration);
     void SetConfgiFromUI(const Configuration& configuration);
+    std::shared_ptr<const Configuration> GetConfig();
 }

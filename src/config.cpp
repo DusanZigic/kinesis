@@ -2,9 +2,10 @@
 
 #include <windows.h>
 
+#include <mutex>
 #include <sstream>
-#include <algorithm>
 #include <fstream>
+#include <algorithm>
 #include <filesystem>
 
 #include "common.hpp"
@@ -26,8 +27,8 @@ namespace Config {
         /*.sameAppsSwitcherMod =*/ VK_MENU,
         /*.sameAppsSwitcherKey =*/ VK_OEM_3
     };
-    Configuration currentConfiguration;
-    std::mutex configMutex;
+    static std::mutex configMutex;
+    static std::shared_ptr<const Configuration> currentConfiguration = std::make_shared<const Configuration>(defaultConfiguration);
 
     static unsigned int StringToVK(const std::string& s) {
         std::string upper = Common::ToUpper(s);
@@ -71,6 +72,18 @@ namespace Config {
 
         return "UNKNOWN";
     }
+
+    static void SetConfig(Configuration configuration) {
+        auto freshConfig = std::make_shared<const Configuration>(std::move(configuration));
+        std::lock_guard<std::mutex> lock(configMutex);
+        currentConfiguration = freshConfig;
+    }
+
+    std::shared_ptr<const Configuration> GetConfig() {
+        std::lock_guard<std::mutex> lock(configMutex);
+        return currentConfiguration;
+    }
+
 
     static std::string GetConfigPath() {
         std::string baseAppPath = Common::GetKnownFolderPath(FOLDERID_LocalAppData);
@@ -126,7 +139,7 @@ namespace Config {
 
     void SaveConfig() {
         std::string configPath = GetConfigPath();
-        SaveConfig(configPath, currentConfiguration);
+        SaveConfig(configPath, *GetConfig());
     }
 
     void OpenConfig() {
@@ -135,8 +148,7 @@ namespace Config {
     }
 
     void DefaultConfig() {
-        std::lock_guard<std::mutex> lock(configMutex);
-        currentConfiguration = defaultConfiguration;
+        SetConfig(defaultConfiguration);
     }
 
     static std::string CleanValue(std::string s) {
@@ -209,18 +221,16 @@ namespace Config {
             }
         }
 
-        std::lock_guard<std::mutex> lock(configMutex);
-        currentConfiguration = configuration;        
+        SetConfig(std::move(configuration));   
 
         return;
     }
 
     void SetUIConfig(Configuration& configuration) {
-        configuration = currentConfiguration;
+        configuration = *GetConfig();
     }
     
     void SetConfgiFromUI(const Configuration& configuration) {
-        std::lock_guard<std::mutex> lock(configMutex);
-        currentConfiguration = configuration;
+        SetConfig(configuration);
     }
 }

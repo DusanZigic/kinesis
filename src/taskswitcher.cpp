@@ -661,8 +661,10 @@ namespace TaskSwitcher {
         }
 
         if (currentMode != SwitcherMode::None && !sessionWindows.empty()) {
-            bool isAllAppMode  = (currentMode == SwitcherMode::AllApps && vkCode == Config::currentConfiguration.allAppsSwitcherKey);
-            bool isSameAppMode = (currentMode == SwitcherMode::SameApp && vkCode == Config::currentConfiguration.sameAppsSwitcherKey);
+            auto currentConfiguration = Config::GetConfig();
+
+            bool isAllAppMode  = (currentMode == SwitcherMode::AllApps && vkCode == currentConfiguration->allAppsSwitcherKey);
+            bool isSameAppMode = (currentMode == SwitcherMode::SameApp && vkCode == currentConfiguration->sameAppsSwitcherKey);
 
             if (isAllAppMode || isSameAppMode) {
                 sessionIndex = (sessionIndex + 1) % sessionWindows.size();

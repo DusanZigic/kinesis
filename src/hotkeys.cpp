@@ -16,7 +16,6 @@ namespace Hotkeys {
 
     static LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
         if (nCode == HC_ACTION) {
-            std::lock_guard<std::mutex> lock(Config::configMutex);
 
             KBDLLHOOKSTRUCT *pKeyBoard = (KBDLLHOOKSTRUCT*)lParam;
 
@@ -28,13 +27,15 @@ namespace Hotkeys {
 
             static unsigned int activeSwitcherMod = 0; // NOTE (dusan): 0 = no switcher session, otherwise the modifier that started it
 
+            auto currentConfiguration = Config::GetConfig();
+
             if (isDown) {
                 if (ctrlHeld && altHeld) {
-                    if (Config::currentConfiguration.enableVSCodeLauncher && pKeyBoard->vkCode == Config::currentConfiguration.VSCodeLauncherKey) {
+                    if (currentConfiguration->enableVSCodeLauncher && pKeyBoard->vkCode == currentConfiguration->VSCodeLauncherKey) {
                         PostMessage(hTarget, Hotkeys::WM_KINESIS_SHOW_LAUNCHER, static_cast<WPARAM>(Launcher::Mode::VSCode), 0);
                         return 1;
                     }
-                    if (Config::currentConfiguration.enableWSLTerminalLauncher && pKeyBoard->vkCode == Config::currentConfiguration.WSLTerminalLauncherKey) {
+                    if (currentConfiguration->enableWSLTerminalLauncher && pKeyBoard->vkCode == currentConfiguration->WSLTerminalLauncherKey) {
                         PostMessage(hTarget, Hotkeys::WM_KINESIS_SHOW_LAUNCHER, static_cast<WPARAM>(Launcher::Mode::WSL), 0);
                         return 1;
                     }
@@ -53,11 +54,11 @@ namespace Hotkeys {
                         PostMessage(hTarget, Hotkeys::WM_KINESIS_SWITCHER_CYCLE, pKeyBoard->vkCode, static_cast<LPARAM>(TaskSwitcher::SwitcherMode::None));
                         return 1;
                     }
-                    if (pKeyBoard->vkCode == Config::currentConfiguration.allAppsSwitcherKey) {
+                    if (pKeyBoard->vkCode == currentConfiguration->allAppsSwitcherKey) {
                         PostMessage(hTarget, Hotkeys::WM_KINESIS_SWITCHER_CYCLE, pKeyBoard->vkCode, static_cast<LPARAM>(TaskSwitcher::SwitcherMode::AllApps));
                         return 1;
                     }
-                    if (pKeyBoard->vkCode == Config::currentConfiguration.sameAppsSwitcherKey) {
+                    if (pKeyBoard->vkCode == currentConfiguration->sameAppsSwitcherKey) {
                         PostMessage(hTarget, Hotkeys::WM_KINESIS_SWITCHER_CYCLE, pKeyBoard->vkCode, static_cast<LPARAM>(TaskSwitcher::SwitcherMode::SameApp));
                         return 1;
                     }
@@ -67,24 +68,24 @@ namespace Hotkeys {
                         return 1;
                     }
                 }
-                if (activeSwitcherMod == 0 && Config::currentConfiguration.enableTaskSwitcher) {
-                    bool allAppsSwitcherModHeld = (GetAsyncKeyState(Config::currentConfiguration.allAppsSwitcherMod) & 0x8000);
-                    if (allAppsSwitcherModHeld && pKeyBoard->vkCode == Config::currentConfiguration.allAppsSwitcherKey) {
-                        activeSwitcherMod = Config::currentConfiguration.allAppsSwitcherMod;
+                if (activeSwitcherMod == 0 && currentConfiguration->enableTaskSwitcher) {
+                    bool allAppsSwitcherModHeld = (GetAsyncKeyState(currentConfiguration->allAppsSwitcherMod) & 0x8000);
+                    if (allAppsSwitcherModHeld && pKeyBoard->vkCode == currentConfiguration->allAppsSwitcherKey) {
+                        activeSwitcherMod = currentConfiguration->allAppsSwitcherMod;
                         PostMessage(hTarget, Hotkeys::WM_KINESIS_SWITCHER_CYCLE, pKeyBoard->vkCode, static_cast<LPARAM>(TaskSwitcher::SwitcherMode::AllApps));
                         return 1;
                     }
 
-                    bool sameAppsSwitcherModHeld = (GetAsyncKeyState(Config::currentConfiguration.sameAppsSwitcherMod) & 0x8000);
-                    if (sameAppsSwitcherModHeld && pKeyBoard->vkCode == Config::currentConfiguration.sameAppsSwitcherKey) {
-                        activeSwitcherMod = Config::currentConfiguration.sameAppsSwitcherMod;
+                    bool sameAppsSwitcherModHeld = (GetAsyncKeyState(currentConfiguration->sameAppsSwitcherMod) & 0x8000);
+                    if (sameAppsSwitcherModHeld && pKeyBoard->vkCode == currentConfiguration->sameAppsSwitcherKey) {
+                        activeSwitcherMod = currentConfiguration->sameAppsSwitcherMod;
                         PostMessage(hTarget, Hotkeys::WM_KINESIS_SWITCHER_CYCLE, pKeyBoard->vkCode, static_cast<LPARAM>(TaskSwitcher::SwitcherMode::SameApp));
                         return 1;
                     }
                 }
-                if (Config::currentConfiguration.enableTabSwitcher) {
+                if (currentConfiguration->enableTabSwitcher) {
                     if (wParam == WM_SYSKEYDOWN && pKeyBoard->vkCode >= '1' && pKeyBoard->vkCode <= '9') {
-                        if (TabSwitcher::SwitchTabs(pKeyBoard->vkCode)) return 1;
+                        if (TabSwitcher::SwitchTabs(pKeyBoard->vkCode, currentConfiguration->tabbedApps)) return 1;
                     }
                 }
 
