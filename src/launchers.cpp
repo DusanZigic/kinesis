@@ -330,9 +330,7 @@ namespace Launcher {
             while (std::getline(file, line)) {
                 if (!line.empty()) {
                     std::wstring wPath = Common::UTF8ToW(line);
-                    if (fs::exists(wPath)) {
-                        ctx.history.push_back(wPath);
-                    }
+                    ctx.history.push_back(wPath);
                 }
             }
             file.close();
@@ -573,7 +571,7 @@ namespace Launcher {
 
     void Initialize() {
         UIStyle::Initialize();
-
+        
         SetUpStoragePath();
 
         ctxVSCode.type = Mode::VSCode;
@@ -675,6 +673,12 @@ namespace Launcher {
         if (history.size() > 50) {
             history.pop_back();
         }
+        SaveHistory(*activeCtx);
+    }
+
+    static void RemoveFromHistory(const std::wstring& path) {
+        auto& history = activeCtx->history;
+        history.erase(std::remove(history.begin(), history.end(), path), history.end());
         SaveHistory(*activeCtx);
     }
 
@@ -801,8 +805,20 @@ namespace Launcher {
         return SUCCEEDED(hr);
     }
 
+    static bool IsWSLPath(const std::wstring& path) {
+        return path.rfind(L"\\\\wsl.localhost\\", 0) == 0 || path.rfind(L"\\\\wsl$\\", 0) == 0;
+    }
+
     static void ExecuteLaunch(int selected) {
         std::wstring path = currentMatches[selected];
+
+        if (!IsWSLPath(path)) {
+            std::error_code ec;
+            if (!fs::exists(path, ec) && !ec) {
+                RemoveFromHistory(path);
+                return;
+            }
+        }
         AddToHistory(path);
 
         if (activeCtx->type == Mode::VSCode) {
@@ -1145,7 +1161,6 @@ namespace Launcher {
         SetWindowSubclass(hEdit, EditSubclassProc, 0, 0);
         SetWindowSubclass(hListBox, ListBoxSubclassProc, 0, 0);
 
-        LoadHistory(*activeCtx);
         BackgroundCrawl();
         RefreshMatches(L"");
 
