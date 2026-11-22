@@ -377,54 +377,24 @@ namespace Launcher {
 
     static std::vector<std::wstring> GetWSLDistros() {
         std::vector<std::wstring> distros;
-        HANDLE hRead, hWrite;
-        SECURITY_ATTRIBUTES sa {};
-        sa.nLength = sizeof(sa);
-        sa.lpSecurityDescriptor = NULL;
-        sa.bInheritHandle = TRUE;
-
-        if (!CreatePipe(&hRead, &hWrite, &sa, 0)) {
+        HKEY hLxss;
+        if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Lxss", 0, KEY_READ, &hLxss) != ERROR_SUCCESS) {
             return distros;
         }
 
-        STARTUPINFOA si {};
-        si.cb = sizeof(si);
-        si.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
-        si.hStdOutput = hWrite;
-        si.hStdError = hWrite;
-        si.wShowWindow = SW_HIDE;
-        PROCESS_INFORMATION pi;
-        char cmd[] = "wsl.exe -l -q";
-        if (CreateProcessA(NULL, cmd, NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
-            CloseHandle(hWrite);
-            
-            std::vector<char> rawBuffer;
-            char chunk[1024];
-            DWORD bytesRead;
-            while (ReadFile(hRead, chunk, sizeof(chunk), &bytesRead, NULL) && bytesRead > 0) {
-                rawBuffer.insert(rawBuffer.end(), chunk, chunk + bytesRead);
-            }
+        wchar_t subkey[64];
+        for (DWORD i = 0; ; ++i) {
+            DWORD len = ARRAYSIZE(subkey);
+            if (RegEnumKeyExW(hLxss, i, subkey, &len, NULL, NULL, NULL, NULL) != ERROR_SUCCESS) break;
 
-            std::wstring currentDistro;
-            for (size_t i = 0; i < rawBuffer.size(); i += 2) {
-                wchar_t c = rawBuffer[i];
-                if (c == '\r' || c == '\n' || c == '\0') {
-                    if (!currentDistro.empty()) {
-                        distros.push_back(currentDistro);
-                        currentDistro.clear();
-                    }
-                } else {
-                    currentDistro += c;
-                }
+            wchar_t name[256];
+            DWORD size = sizeof(name);
+            if (RegGetValueW(hLxss, subkey, L"DistributionName", RRF_RT_REG_SZ, NULL, name, &size) == ERROR_SUCCESS) {
+                distros.push_back(name);
             }
-            if (!currentDistro.empty()) {
-                distros.push_back(currentDistro);
-            }
-
-            CloseHandle(pi.hProcess);
-            CloseHandle(pi.hThread);
         }
-        CloseHandle(hRead);
+        RegCloseKey(hLxss);
+
         return distros;
     }
 
