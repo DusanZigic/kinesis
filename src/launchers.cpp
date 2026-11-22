@@ -190,7 +190,6 @@ namespace Launcher {
     static std::atomic<bool> isScanning(false);
     
     static std::wstring historyBaseDir = L"";
-    static std::vector<std::wstring> crawlerRootPaths;
     static const int maxSubFolderDepth = 5;
     static const int maxPathsN = 5;
 
@@ -337,9 +336,11 @@ namespace Launcher {
         }
     }
 
-    static const std::vector<std::wstring> GetOneDrivePaths() {
+    static std::vector<std::wstring> GetOneDrivePaths() {
         std::vector<std::wstring> paths;
         HKEY hKey;
+
+        std::error_code ec;
 
         const wchar_t* subkey = L"Software\\Microsoft\\OneDrive\\Accounts";
 
@@ -353,7 +354,7 @@ namespace Launcher {
                     wchar_t path[MAX_PATH];
                     DWORD pathSize = sizeof(path);
                     if (RegQueryValueExW(hAccountKey, L"UserFolder", NULL, NULL, (LPBYTE)path, &pathSize) == ERROR_SUCCESS) {
-                        if (fs::exists(path)) {
+                        if (fs::exists(path, ec)) {
                             paths.push_back(std::wstring(path));
                         }
                     }
@@ -366,10 +367,10 @@ namespace Launcher {
 
         if (paths.empty()) {
             std::wstring personal = GetEnv(L"OneDrive");
-            if (!personal.empty() && fs::exists(personal)) paths.push_back(personal);
+            if (!personal.empty() && fs::exists(personal, ec)) paths.push_back(personal);
             
             std::wstring business = GetEnv(L"OneDriveCommercial");
-            if (!business.empty() && fs::exists(business)) paths.push_back(business);
+            if (!business.empty() && fs::exists(business, ec)) paths.push_back(business);
         }
 
         return paths;
@@ -398,38 +399,47 @@ namespace Launcher {
         return distros;
     }
 
-    static void InitializeCrawlerRootPaths() {
-        KNOWNFOLDERID roots[] = { FOLDERID_Documents, FOLDERID_Desktop, FOLDERID_Downloads };
-        for (const auto& id : roots) {
-            std::wstring p = Common::GetKnownFolderPathW(id);
-            if (!p.empty()) crawlerRootPaths.push_back(p);
-        }
-
-        std::vector<std::wstring> oneDrivePaths = GetOneDrivePaths();
-        for (const auto& path : oneDrivePaths) {
-            if (std::find(crawlerRootPaths.begin(), crawlerRootPaths.end(), path) == crawlerRootPaths.end()) {
-                crawlerRootPaths.push_back(path);
-            }
-        }
-
-        std::vector<std::wstring> distros = GetWSLDistros();
-        std::error_code ec;
-        for (const auto& distro : distros) {
-            std::wstring basePaths[] = { 
+    static std::vector<std::wstring> GetWSLRootPaths() {
+        std::vector<std::wstring> roots;
+        for (const auto& distro : GetWSLDistros()) {
+            std::wstring homeBases[] = {
                 L"\\\\wsl.localhost\\" + distro + L"\\home",
-                L"\\\\wsl$\\" + distro + L"\\home" 
+                L"\\\\wsl$\\"          + distro + L"\\home"
             };
-            for (const auto& homeBase : basePaths) {
-                if (fs::exists(homeBase, ec)) {
-                    for (auto const& userEntry : fs::directory_iterator(homeBase, ec)) {
-                        if (!ec && userEntry.is_directory(ec)) {
-                            crawlerRootPaths.push_back(userEntry.path().wstring());
-                        }
-                    }
-                    break;
+            for (const auto& homeBase : homeBases) {
+                std::error_code ec;
+                fs::directory_iterator it(homeBase, ec);
+                if (ec) continue;
+
+                for (fs::directory_iterator end; !ec && it != end; it.increment(ec)) {
+                    std::error_code typeEc;
+                    if (it->is_directory(typeEc)) roots.push_back(it->path().wstring());
                 }
+                break;
             }
         }
+        return roots;
+    }
+
+    static std::vector<std::wstring> GetCrawlerRootPaths() {
+        std::vector<std::wstring> roots;
+
+        KNOWNFOLDERID knownFolders[] = { FOLDERID_Documents, FOLDERID_Desktop, FOLDERID_Downloads };
+        for (const auto& id : knownFolders) {
+            std::wstring p = Common::GetKnownFolderPathW(id);
+            if (!p.empty()) roots.push_back(p);
+        }
+
+        for (const auto& path : GetOneDrivePaths()) {
+            if (std::find(roots.begin(), roots.end(), path) == roots.end()) {
+                roots.push_back(path);
+            }
+        }
+
+        std::vector<std::wstring> wslRoots = GetWSLRootPaths();
+        roots.insert(roots.end(), wslRoots.begin(), wslRoots.end());
+
+        return roots;
     }
 
     static void ScanDirectory(const std::wstring& path, std::vector<std::wstring>& results, int depth) {
@@ -467,14 +477,23 @@ namespace Launcher {
 
     static void BackgroundCrawl() {
         if (isScanning.exchange(true)) return;
+
         std::thread([]() {
+            std::vector<std::wstring> roots = GetCrawlerRootPaths();
             std::vector<std::wstring> tempFolders;
-            for (const auto& root : crawlerRootPaths) ScanDirectory(root, tempFolders, 0);
+            for (const auto& root : roots) ScanDirectory(root, tempFolders, 0);
+
+#ifdef _DEBUG
+            printf("crawl: %llu roots, %llu folders\n", (unsigned long long)roots.size(), (unsigned long long)tempFolders.size());
+            fflush(stdout);
+#endif
             {
                 std::lock_guard<std::mutex> lock(crawlMutex);
                 allCrawledFolders.swap(tempFolders);
             }
+            
             isScanning = false;
+        
         }).detach();
     }
 
@@ -541,7 +560,7 @@ namespace Launcher {
 
     void Initialize() {
         UIStyle::Initialize();
-        
+
         SetUpStoragePath();
 
         ctxVSCode.type = Mode::VSCode;
@@ -562,7 +581,6 @@ namespace Launcher {
         ctxWSL.placeholder = L"Search for WSL directories...";
         LoadHistory(ctxWSL);
 
-        InitializeCrawlerRootPaths();
         BackgroundCrawl();
     }
 
