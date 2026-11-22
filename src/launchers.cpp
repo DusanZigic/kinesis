@@ -120,6 +120,51 @@ namespace Launcher {
 
     };
 
+    struct BackgroundCache {
+        HDC     hDC     = NULL;
+        HBITMAP hBmp    = NULL;
+        HGDIOBJ hOldBmp = NULL;
+
+        void Build(HWND hList, Gdiplus::Image* logo, const Gdiplus::Rect& logoRect) {
+            Release();
+
+            RECT rc {};
+            if (!GetClientRect(hList, &rc)) return;
+
+            HDC hdc = GetDC(hList);
+            hDC  = CreateCompatibleDC(hdc);
+            hBmp = CreateCompatibleBitmap(hdc, rc.right, rc.bottom);
+            ReleaseDC(hList, hdc);
+            hOldBmp = SelectObject(hDC, hBmp);
+
+            FillRect(hDC, &rc, UIStyle::hBgBrush);
+
+            if (logo) {
+                Gdiplus::Graphics graphics(hDC);
+                graphics.SetCompositingMode(Gdiplus::CompositingModeSourceOver);
+                graphics.SetInterpolationMode(Gdiplus::InterpolationModeLowQuality);
+                graphics.SetPixelOffsetMode(Gdiplus::PixelOffsetModeNone);
+
+                graphics.DrawImage(
+                    logo,
+                    logoRect,
+                    0, 0,
+                    logo->GetWidth(), logo->GetHeight(),
+                    Gdiplus::UnitPixel,
+                    UIStyle::logoAttr
+                );
+            }
+        }
+
+        void Release() {
+            if (hDC)  SelectObject(hDC, hOldBmp);
+            if (hBmp) DeleteObject(hBmp);
+            if (hDC)  DeleteDC(hDC);
+            *this = {};
+        }
+    };
+    static BackgroundCache bgCache;
+
     static Context ctxVSCode;
     static Context ctxWSL;
     static Context* activeCtx = nullptr;
@@ -805,7 +850,6 @@ namespace Launcher {
 
                     SendMessage(hListBox, LB_SETCURSEL, next, 0);
                     SetWindowTextW(hPathLabel, currentMatches[next].c_str());
-                    InvalidateRect(hListBox, NULL, FALSE);
                     return 0;
                 }
                 break;
@@ -834,25 +878,14 @@ namespace Launcher {
 
                 RECT rcList;
                 GetClientRect(hwnd, &rcList);
+
                 HDC memDC = CreateCompatibleDC(hdc);
                 HBITMAP memBmp = CreateCompatibleBitmap(hdc, rcList.right, rcList.bottom);
                 HGDIOBJ oldBmp = SelectObject(memDC, memBmp);
-                FillRect(memDC, &rcList, UIStyle::hBgBrush);
-
-                if (activeCtx && activeCtx->logoImage) {
-                    Gdiplus::Graphics graphics(memDC);
-                    graphics.SetCompositingMode(Gdiplus::CompositingModeSourceOver);
-                    graphics.SetInterpolationMode(Gdiplus::InterpolationModeLowQuality);
-                    graphics.SetPixelOffsetMode(Gdiplus::PixelOffsetModeNone);
-
-                    graphics.DrawImage(
-                        activeCtx->logoImage,
-                        Gdiplus::Rect(layoutMetrics.logoFinalX, layoutMetrics.logoFinalY, layoutMetrics.logoImgWidth, layoutMetrics.logoImgHeight),
-                        0, 0,
-                        activeCtx->logoImage->GetWidth(), activeCtx->logoImage->GetHeight(),
-                        Gdiplus::UnitPixel,
-                        UIStyle::logoAttr
-                    );
+                if (bgCache.hDC) {
+                    BitBlt(memDC, 0, 0, rcList.right, rcList.bottom, bgCache.hDC, 0, 0, SRCCOPY);
+                } else {
+                    FillRect(memDC, &rcList, UIStyle::hBgBrush);
                 }
 
                 SendMessage(hwnd, WM_PRINTCLIENT, (WPARAM)memDC, PRF_CLIENT);
@@ -888,7 +921,6 @@ namespace Launcher {
                     if (pendingIndex != -1) {
                         SendMessage(hwnd, LB_SETCURSEL, pendingIndex, 0);
                         SetWindowTextW(hPathLabel, currentMatches[pendingIndex].c_str());
-                        InvalidateRect(hwnd, NULL, FALSE);
                     }
                 }
                 return 0;
@@ -940,6 +972,14 @@ namespace Launcher {
             case WM_DRAWITEM: {
                 PDRAWITEMSTRUCT pdis = (PDRAWITEMSTRUCT)lParam;
                 if (pdis->itemID == (UINT)-1) return TRUE;
+
+                const RECT& rc = pdis->rcItem;
+                int w = rc.right - rc.left;
+                int h = rc.bottom - rc.top;
+
+                if (bgCache.hDC) {
+                    BitBlt(pdis->hDC, rc.left, rc.top, w, h, bgCache.hDC, rc.left, rc.top, SRCCOPY);
+                }
 
                 Gdiplus::Graphics graphics(pdis->hDC);
                 graphics.SetTextRenderingHint(Gdiplus::TextRenderingHintClearTypeGridFit);
@@ -996,6 +1036,7 @@ namespace Launcher {
                 return 0;
             }
             case WM_DESTROY: {
+                bgCache.Release();
                 hLauncherWindow = NULL;
                 return 0;
             }
@@ -1092,6 +1133,9 @@ namespace Launcher {
         SendMessage(hListBox,   WM_SETFONT, (WPARAM)UIStyle::hWin32MainFont,  TRUE);    
         SendMessage(hPathLabel, WM_SETFONT, (WPARAM)UIStyle::hWin32SmallFont, TRUE);
 
+        Gdiplus::Rect logoRect(layoutMetrics.logoFinalX, layoutMetrics.logoFinalY, layoutMetrics.logoImgWidth, layoutMetrics.logoImgHeight);
+        bgCache.Build(hListBox, activeCtx->logoImage, logoRect);
+
         if (!activeCtx->isEngineFound) {
             EnableWindow(hEdit, FALSE);
             SetWindowTextW(hEdit, L"");
@@ -1125,5 +1169,6 @@ namespace Launcher {
         delete ctxVSCode.logoImage; ctxVSCode.logoImage = nullptr;
         delete ctxWSL.logoImage;    ctxWSL.logoImage    = nullptr;
         UIStyle::Release();
+        bgCache.Release();
     }
 }
