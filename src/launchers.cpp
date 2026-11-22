@@ -194,7 +194,7 @@ namespace Launcher {
     static const int maxSubFolderDepth = 5;
     static const int maxPathsN = 5;
 
-    static int pendingIndex = -1;
+    static int hoverIndex = -1;
 
     static std::wstring GetEnv(const std::wstring& var) {
         wchar_t buf[MAX_PATH];
@@ -900,30 +900,24 @@ namespace Launcher {
                 return 0;
             }
             case WM_MOUSEMOVE: {
-                LRESULT result = SendMessage(hwnd, LB_ITEMFROMPOINT, 0, lParam);
-                if (HIWORD(result) == 0) {
-                    int hoveredIndex = LOWORD(result);
-                    int currentSel = (int)SendMessage(hwnd, LB_GETCURSEL, 0, 0);
-                    if (hoveredIndex != currentSel && hoveredIndex != pendingIndex && hoveredIndex < (int)currentMatches.size()) {
-                        pendingIndex = hoveredIndex;
-                        KillTimer(hwnd, 1);
-                        SetTimer(hwnd, 1, 25, NULL);
-                    }
-                } else {
+                LRESULT hit = SendMessage(hwnd, LB_ITEMFROMPOINT, 0, lParam);
+                int index = (HIWORD(hit) == 0) ? (int)LOWORD(hit) : -1;
+                if (index != hoverIndex) {               // entered a different item, or left the items
+                    hoverIndex = index;
                     KillTimer(hwnd, 1);
-                    pendingIndex = -1;
+                    if (hoverIndex != -1) SetTimer(hwnd, 1, 25, NULL);
                 }
                 break;
             }
             case WM_TIMER: {
                 if (wParam == 1) {
-                    KillTimer(hwnd, 1);
-                    if (pendingIndex != -1) {
-                        SendMessage(hwnd, LB_SETCURSEL, pendingIndex, 0);
-                        SetWindowTextW(hPathLabel, currentMatches[pendingIndex].c_str());
-                    }
+                KillTimer(hwnd, 1);
+                if (hoverIndex != -1 && hoverIndex < (int)currentMatches.size()) {
+                    SendMessage(hwnd, LB_SETCURSEL, hoverIndex, 0);
+                    SetWindowTextW(hPathLabel, currentMatches[hoverIndex].c_str());
                 }
-                return 0;
+            }
+            return 0;
             }
             case WM_LBUTTONDOWN: {
                 int sel = (int)SendMessage(hwnd, LB_GETCURSEL, 0, 0);
@@ -1036,6 +1030,7 @@ namespace Launcher {
                 return 0;
             }
             case WM_DESTROY: {
+                hoverIndex = -1;
                 bgCache.Release();
                 hLauncherWindow = NULL;
                 return 0;
@@ -1151,6 +1146,12 @@ namespace Launcher {
         LoadHistory(*activeCtx);
         BackgroundCrawl();
         RefreshMatches(L"");
+
+        POINT pt;
+        GetCursorPos(&pt);                       // screen coordinates
+        ScreenToClient(hListBox, &pt);           // → list box client coordinates
+        LRESULT hit = SendMessage(hListBox, LB_ITEMFROMPOINT, 0, MAKELPARAM(pt.x, pt.y));
+        hoverIndex = (HIWORD(hit) == 0) ? (int)LOWORD(hit) : -1;
 
         AllowSetForegroundWindow(ASFW_ANY);
         keybd_event(0xFC, 0, 0, 0);
