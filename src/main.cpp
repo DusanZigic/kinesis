@@ -52,7 +52,7 @@ LRESULT CALLBACK GhostWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             return 0;
         }
         case Hotkeys::WM_KINESIS_INITIATE_QUIT_SEQUENCE: {
-            QuitSequence::InitiateQuitSequence();
+            QuitSequence::InitiateQuitSequence(hwnd);
             return 0;
         }
         case Hotkeys::WM_KINESIS_SWITCHER_CYCLE: {

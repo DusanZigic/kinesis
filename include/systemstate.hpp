@@ -10,7 +10,7 @@ namespace SystemState {
     bool IsRunAsAdminEnabled();
 
     void SetOnStartup(bool enable);
-    void SetRunAsAdmin(bool enable);
+    bool SetRunAsAdmin(bool enable);
 
     bool Initialize();
     bool ReLaunchApp(bool asAdmin);

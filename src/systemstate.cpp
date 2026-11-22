@@ -177,24 +177,26 @@ namespace SystemState {
         return true;
     }
 
-    void SetRunAsAdmin(bool enable) {
+    bool SetRunAsAdmin(bool enable) {
         SetRegBool("RunAsAdmin", enable);
         SyncSystemState();
 
         bool currentlyAdmin = IsUserAnAdmin();
 
-        if (enable == currentlyAdmin) return;
+        if (enable == currentlyAdmin) return false;
 
         CleanUp();
 
         if (ReLaunchApp(enable)) {
             SetRegBool("RunAsAdmin", enable);
             SyncSystemState();
-            PostQuitMessage(0);
-        } else {
-            CoreInitialize();
-            SetRegBool("RunAsAdmin", currentlyAdmin);
+            return true;
         }
+
+        CoreInitialize();
+        SetRegBool("RunAsAdmin", currentlyAdmin);
+
+        return false;
     }
 
     bool Initialize() {
