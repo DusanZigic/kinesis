@@ -338,37 +338,28 @@ namespace Launcher {
 
     static std::vector<std::wstring> GetOneDrivePaths() {
         std::vector<std::wstring> paths;
-        HKEY hKey;
-
         std::error_code ec;
 
-        const wchar_t* subkey = L"Software\\Microsoft\\OneDrive\\Accounts";
-
-        if (RegOpenKeyExW(HKEY_CURRENT_USER, subkey, 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+        HKEY hAccounts;
+        if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\OneDrive\\Accounts", 0, KEY_READ, &hAccounts) == ERROR_SUCCESS) {
             wchar_t accountName[256];
-            DWORD nameSize = sizeof(accountName) / sizeof(wchar_t);
+            for (DWORD i = 0; ; ++i) {
+                DWORD nameLen = ARRAYSIZE(accountName);
+                if (RegEnumKeyExW(hAccounts, i, accountName, &nameLen, NULL, NULL, NULL, NULL) != ERROR_SUCCESS) break;
 
-            for (DWORD i = 0; RegEnumKeyExW(hKey, i, accountName, &nameSize, NULL, NULL, NULL, NULL) == ERROR_SUCCESS; ++i) {
-                HKEY hAccountKey;
-                if (RegOpenKeyExW(hKey, accountName, 0, KEY_READ, &hAccountKey) == ERROR_SUCCESS) {
-                    wchar_t path[MAX_PATH];
-                    DWORD pathSize = sizeof(path);
-                    if (RegQueryValueExW(hAccountKey, L"UserFolder", NULL, NULL, (LPBYTE)path, &pathSize) == ERROR_SUCCESS) {
-                        if (fs::exists(path, ec)) {
-                            paths.push_back(std::wstring(path));
-                        }
-                    }
-                    RegCloseKey(hAccountKey);
+                wchar_t path[MAX_PATH];
+                DWORD pathSize = sizeof(path);
+                if (RegGetValueW(hAccounts, accountName, L"UserFolder", RRF_RT_REG_SZ, NULL, path, &pathSize) == ERROR_SUCCESS && fs::exists(path, ec)) {
+                    paths.push_back(path);
                 }
-                nameSize = sizeof(accountName) / sizeof(wchar_t);
             }
-            RegCloseKey(hKey);
+            RegCloseKey(hAccounts);
         }
 
         if (paths.empty()) {
             std::wstring personal = GetEnv(L"OneDrive");
             if (!personal.empty() && fs::exists(personal, ec)) paths.push_back(personal);
-            
+
             std::wstring business = GetEnv(L"OneDriveCommercial");
             if (!business.empty() && fs::exists(business, ec)) paths.push_back(business);
         }
