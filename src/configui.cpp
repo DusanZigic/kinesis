@@ -563,16 +563,18 @@ namespace ConfigUI {
                 PAINTSTRUCT ps;
                 HDC hdc = BeginPaint(hWnd, &ps);
 
-                HDC memDC = CreateCompatibleDC(hdc);
-                HBITMAP memBitmap = CreateCompatibleBitmap(hdc, ps.rcPaint.right, ps.rcPaint.bottom);
-                SelectObject(memDC, memBitmap);
+                HDC hMemDC = CreateCompatibleDC(hdc);
+                HBITMAP hMemBmp = CreateCompatibleBitmap(hdc, ps.rcPaint.right, ps.rcPaint.bottom);
+                HGDIOBJ oldBmp = SelectObject(hMemDC, hMemBmp);
 
-                Render(memDC);
+                Render(hMemDC);
 
-                BitBlt(hdc, 0, 0, ps.rcPaint.right, ps.rcPaint.bottom, memDC, 0, 0, SRCCOPY);
+                BitBlt(hdc, 0, 0, ps.rcPaint.right, ps.rcPaint.bottom, hMemDC, 0, 0, SRCCOPY);
 
-                DeleteObject(memBitmap);
-                DeleteDC(memDC);
+                SelectObject(hMemDC, oldBmp);
+                DeleteObject(hMemBmp);
+                DeleteDC(hMemDC);
+
                 EndPaint(hWnd, &ps);
 
                 return 0;

@@ -87,7 +87,7 @@ namespace Tray {
                     SystemState::SetOnStartup(!isOnStartup);
                     break;
                 case ID_ADMIN_TOGGLE:
-                    SystemState::SetRunAsAdmin(!isAdminRun);
+                    if (SystemState::SetRunAsAdmin(!isAdminRun)) PostMessage(hGhostWnd, WM_CLOSE, 0, 0);
                     break;
                 case ID_OPEN_CONFIG_UI:
                     ConfigUI::OpenConfigUI();
@@ -103,7 +103,7 @@ namespace Tray {
                     Config::SaveConfig();
                     break;
                 case ID_EXIT:
-                    PostQuitMessage(0);
+                    PostMessage(hGhostWnd, WM_CLOSE, 0, 0);
                     break;
             }
         }

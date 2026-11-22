@@ -17,6 +17,8 @@ namespace QuitSequence {
     static int winY = 0;
     static int fontSize = 0;
 
+    static HWND hOwnerWnd = NULL;
+
     static LRESULT CALLBACK QuitDialogProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         switch (msg) {
             case WM_ACTIVATEAPP: {
@@ -33,7 +35,7 @@ namespace QuitSequence {
             }
             case WM_KEYDOWN:
                 if (wParam == VK_RETURN) {
-                    PostQuitMessage(0);
+                    PostMessage(hOwnerWnd, WM_CLOSE, 0, 0);
                     return 0;
                 } else if (wParam == VK_ESCAPE) {
                     PostMessage(hwnd, WM_CLOSE, 0, 0);
@@ -79,11 +81,13 @@ namespace QuitSequence {
         return DefWindowProc(hwnd, msg, wParam, lParam);
     }
 
-    void InitiateQuitSequence() {
+    void InitiateQuitSequence(HWND hAppWnd) {
         if (hQuitDlg && IsWindow(hQuitDlg)) {
             SetForegroundWindow(hQuitDlg);
             return;
         }
+
+        hOwnerWnd = hAppWnd;
 
         int screenW = GetSystemMetrics(SM_CXSCREEN);
         int screenH = GetSystemMetrics(SM_CYSCREEN);
