@@ -920,10 +920,12 @@ namespace Launcher {
             return 0;
             }
             case WM_LBUTTONDOWN: {
-                int sel = (int)SendMessage(hwnd, LB_GETCURSEL, 0, 0);
-                if (sel != LB_ERR && sel < (int)currentMatches.size()) {
-                    ExecuteLaunch(sel);
+                LRESULT hit = SendMessage(hwnd, LB_ITEMFROMPOINT, 0, lParam);
+                int index = LOWORD(hit);
+                if (HIWORD(hit) != 0 || index >= (int)currentMatches.size()) {
+                    return 0;
                 }
+                ExecuteLaunch(index);
                 DestroyWindow(hLauncherWindow);
                 return 0;
             }
