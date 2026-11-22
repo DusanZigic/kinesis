@@ -439,7 +439,7 @@ namespace TaskSwitcher {
         if (sessionWindows.empty()) return;
 
         if (currentMode == SwitcherMode::AllApps) {
-            for (auto t : sessionThumbs) DwmUnregisterThumbnail(t);
+            for (auto t : sessionThumbs) if (t) DwmUnregisterThumbnail(t);
             sessionThumbs.clear();
             return; 
         }
@@ -454,16 +454,19 @@ namespace TaskSwitcher {
         for (size_t i=0; i<sessionWindows.size(); ++i) {
             HTHUMBNAIL hCurrentThumb = NULL;
             if (isInitialLoad) {
-                if (SUCCEEDED(DwmRegisterThumbnail(hSwitcherWindow, sessionWindows[i].hwnd, &hCurrentThumb))) {
-                    sessionThumbs.push_back(hCurrentThumb);
-                } else {
-                    hCurrentThumb = sessionThumbs[i];
+                if (FAILED(DwmRegisterThumbnail(hSwitcherWindow, sessionWindows[i].hwnd, &hCurrentThumb))) {
+                   hCurrentThumb = NULL;
                 }
-                if (hCurrentThumb) {
-                    props.opacity = (i == sessionIndex) ? 255 : 170;
-                    props.rcDestination = GetThumbRect(cachedLayout, i, sessionWindows.size());
-                    DwmUpdateThumbnailProperties(hCurrentThumb, &props);
-                }
+                sessionThumbs.push_back(hCurrentThumb);
+            }
+            else if (i < sessionThumbs.size()) {
+                hCurrentThumb = sessionThumbs[i];
+            }
+
+            if (hCurrentThumb) {
+                props.opacity = (i == sessionIndex) ? 255 : 170;
+                props.rcDestination = GetThumbRect(cachedLayout, i, sessionWindows.size());
+                DwmUpdateThumbnailProperties(hCurrentThumb, &props);
             }
         }
     }
@@ -540,7 +543,7 @@ namespace TaskSwitcher {
             }
         }
 
-        for (auto t : sessionThumbs) DwmUnregisterThumbnail(t);
+        for (auto t : sessionThumbs) if (t) DwmUnregisterThumbnail(t);
         sessionThumbs.clear();
 
         for (auto entry : sessionWindows) if (entry.hIcon) DestroyIcon(entry.hIcon);
@@ -587,7 +590,7 @@ namespace TaskSwitcher {
         }
 
         if (isSwap) {
-            for (auto t : sessionThumbs) DwmUnregisterThumbnail(t);
+            for (auto t : sessionThumbs) if (t) DwmUnregisterThumbnail(t);
             sessionThumbs.clear();
             
             for (auto entry : sessionWindows) if (entry.hIcon) DestroyIcon(entry.hIcon);
@@ -656,6 +659,7 @@ namespace TaskSwitcher {
             
             if (!sessionWindows.empty()) {
                 sessionIndex = (sessionIndex + 1) % sessionWindows.size();
+                UpdateThumbnailGallery();
             }
             return;
         }
